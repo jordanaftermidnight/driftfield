@@ -196,6 +196,130 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
 }
 
 /**
+ * Generates a shareable daily score card as a canvas image.
+ * Returns a canvas element (1080x1080).
+ */
+export function generateScoreCard(score, factors) {
+  const size = 1080;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const cx = size / 2;
+
+  const color = score >= 60 ? [0, 255, 140] : score >= 30 ? [255, 217, 61] : [255, 60, 80];
+  const accentHex = score >= 60 ? "#00ff8c" : score >= 30 ? "#ffd93d" : "#ff3c50";
+
+  // Background
+  ctx.fillStyle = "#0a0a12";
+  ctx.fillRect(0, 0, size, size);
+
+  // Grid
+  ctx.strokeStyle = "#ffffff06";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < size; i += 40) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(size, i); ctx.stroke();
+  }
+
+  // Title
+  ctx.font = "12px monospace";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#555555";
+  ctx.letterSpacing = "6px";
+  ctx.fillText("DAILY SURFACE AREA", cx, 200);
+
+  // Score ring
+  ctx.beginPath();
+  ctx.arc(cx, 420, 160, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.12)`;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Score arc (filled portion)
+  const startAngle = -Math.PI / 2;
+  const endAngle = startAngle + (score / 100) * Math.PI * 2;
+  ctx.beginPath();
+  ctx.arc(cx, 420, 160, startAngle, endAngle);
+  ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.6)`;
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  ctx.stroke();
+
+  // Score number
+  ctx.font = "bold 96px monospace";
+  ctx.fillStyle = accentHex;
+  ctx.letterSpacing = "0px";
+  ctx.textAlign = "center";
+  ctx.fillText(score.toString(), cx, 440);
+
+  ctx.font = "24px monospace";
+  ctx.fillStyle = "#555555";
+  ctx.fillText("/ 100", cx, 480);
+
+  // Factors
+  ctx.font = "16px monospace";
+  ctx.fillStyle = "#888888";
+  ctx.textAlign = "center";
+  let fy = 620;
+  factors.forEach(f => {
+    ctx.fillStyle = accentHex + "60";
+    ctx.fillText("·", cx - 120, fy);
+    ctx.fillStyle = "#888888";
+    ctx.fillText(f, cx, fy);
+    fy += 30;
+  });
+
+  // Date
+  ctx.font = "11px monospace";
+  ctx.fillStyle = "#444444";
+  ctx.fillText(new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }), cx, fy + 30);
+
+  // Branding
+  ctx.font = "12px monospace";
+  ctx.fillStyle = "#2a2a40";
+  ctx.letterSpacing = "4px";
+  ctx.fillText("DRIFTFIELD", cx - 20, size - 50);
+
+  ctx.font = "9px monospace";
+  ctx.fillStyle = "#1a1a30";
+  ctx.letterSpacing = "2px";
+  ctx.fillText("ENTROPY × CYCLE × ATTENTION × ACTION", cx, size - 30);
+
+  return canvas;
+}
+
+/**
+ * Share or download a daily score card.
+ */
+export async function shareScoreCard(score, factors) {
+  const canvas = generateScoreCard(score, factors);
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+  const file = new File([blob], "driftfield-score.png", { type: "image/png" });
+
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({
+        title: `Surface Area: ${score}/100`,
+        text: `My luck surface area today: ${score}/100`,
+        files: [file],
+      });
+      return "shared";
+    } catch (e) {
+      if (e.name === "AbortError") return "cancelled";
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "driftfield-score.png";
+  a.click();
+  URL.revokeObjectURL(url);
+  return "downloaded";
+}
+
+/**
  * Share or download a probe card.
  */
 export async function shareProbeCard(probe) {

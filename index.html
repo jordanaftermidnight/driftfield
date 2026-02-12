@@ -445,10 +445,141 @@
     transform: translateY(0);
   }
 
+  .entropy-pulse {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    opacity: 0;
+    animation: fadeUp 1s ease 0.8s forwards;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .pulse-dot {
+    color: var(--accent);
+    animation: pulseDot 2s ease infinite;
+  }
+
+  .pulse-value {
+    color: var(--accent);
+    font-weight: 500;
+    min-width: 36px;
+  }
+
+  .pulse-status {
+    color: var(--text-dim);
+    font-size: 9px;
+  }
+
+  .pulse-value.elevated { color: var(--gold); }
+  .pulse-dot.elevated { color: var(--gold); }
+
+  @keyframes pulseDot {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  .probe-count {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: #2a2a40;
+    margin-bottom: 20px;
+    min-height: 14px;
+    opacity: 0;
+    animation: fadeUp 1s ease 0.85s forwards;
+  }
+
+  .signal-capture {
+    padding: 80px 24px;
+    text-align: center;
+    border-top: 1px solid var(--border);
+  }
+
+  .capture-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 6px;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+  }
+
+  .capture-sub {
+    font-size: 17px;
+    color: var(--text);
+    font-weight: 300;
+    margin-bottom: 32px;
+    line-height: 1.7;
+  }
+
+  .capture-form {
+    display: flex;
+    gap: 0;
+    max-width: 420px;
+    margin: 0 auto;
+  }
+
+  .capture-input {
+    flex: 1;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-right: none;
+    border-radius: 4px 0 0 4px;
+    color: var(--text-bright);
+    font-family: var(--mono);
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.3s;
+  }
+
+  .capture-input:focus {
+    border-color: var(--accent);
+  }
+
+  .capture-input::placeholder {
+    color: var(--text-dim);
+  }
+
+  .capture-btn {
+    padding: 14px 24px;
+    background: var(--accent);
+    color: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 0 4px 4px 0;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 3px;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+  }
+
+  .capture-btn:hover {
+    background: transparent;
+    color: var(--accent);
+  }
+
+  .capture-success {
+    display: none;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-top: 16px;
+  }
+
   @media (max-width: 600px) {
     .feature-grid { grid-template-columns: 1fr; }
     .hero { padding: 40px 20px; }
     .cta { padding: 12px 24px; font-size: 11px; }
+    .capture-form { flex-direction: column; }
+    .capture-input { border-right: 1px solid var(--border); border-radius: 4px; }
+    .capture-btn { border-radius: 4px; }
   }
 </style>
 </head>
@@ -464,8 +595,15 @@
     amplifies your luck surface area, and tells you where chance is flowing.
   </p>
   <div class="hero-tagline">DETECT &middot; AMPLIFY &middot; FOLLOW</div>
+  <div class="entropy-pulse" id="entropy-pulse">
+    <span class="pulse-dot">&#x25C9;</span>
+    <span class="pulse-label">ANOMALY</span>
+    <span class="pulse-value" id="pulse-value">—</span>
+    <span class="pulse-status" id="pulse-status"></span>
+  </div>
+  <div class="probe-count" id="probe-count"></div>
   <div class="cta-group">
-    <a href="app/" class="cta cta-primary">OPEN DETECTOR</a>
+    <a href="app/" class="cta cta-primary">OPEN ENGINE</a>
     <a href="#how" class="cta cta-ghost">HOW IT WORKS</a>
   </div>
   <div class="scroll-hint">&#x25BD; SCROLL</div>
@@ -630,6 +768,19 @@
   </div>
 </section>
 
+<section class="signal-capture">
+  <div class="container reveal">
+    <div class="capture-label">THE FIELD IS SHIFTING</div>
+    <p class="capture-sub">Leave your signal. We'll reach out when something moves.</p>
+    <!-- To activate: create a free form at https://formspree.io and replace YOUR_FORM_ID below -->
+    <form class="capture-form" id="signal-form" action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
+      <input type="email" name="email" required placeholder="your@email.com" class="capture-input" autocomplete="email">
+      <button type="submit" class="capture-btn">TUNE IN</button>
+    </form>
+    <div class="capture-success" id="capture-success">Signal received.</div>
+  </div>
+</section>
+
 <section class="final">
   <div class="container reveal">
     <h2>The field is already moving</h2>
@@ -686,6 +837,58 @@ const observer = new IntersectionObserver(entries => {
   entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
 }, { threshold: 0.15 });
 document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// Entropy pulse — real entropy sampling
+function sampleAnomaly() {
+  const d = new Uint8Array(256);
+  crypto.getRandomValues(d);
+  const freq = {};
+  for (const b of d) freq[b] = (freq[b] || 0) + 1;
+  let H = 0;
+  for (const k in freq) { const p = freq[k] / 256; if (p > 0) H -= p * Math.log2(p); }
+  return Math.min(Math.abs(8 - H) / 8 * 300, 100);
+}
+function updatePulse() {
+  const a = sampleAnomaly();
+  const el = document.getElementById('pulse-value');
+  const st = document.getElementById('pulse-status');
+  const dot = document.querySelector('.pulse-dot');
+  if (!el) return;
+  el.textContent = a.toFixed(1) + '%';
+  const elevated = a > 20;
+  el.className = 'pulse-value' + (elevated ? ' elevated' : '');
+  dot.className = 'pulse-dot' + (elevated ? ' elevated' : '');
+  st.textContent = a > 25 ? '— signal detected' : a > 15 ? '— slight deviation' : '— baseline';
+}
+updatePulse();
+setInterval(updatePulse, 2000);
+
+// Probe counter — shows returning users their count
+try {
+  const probes = JSON.parse(localStorage.getItem('df_df_probes') || '[]');
+  const probes2 = JSON.parse(localStorage.getItem('df_probes') || '[]'); // try both key patterns
+  const count = Math.max(probes.length, probes2.length);
+  if (count > 0) {
+    document.getElementById('probe-count').textContent = count + ' PROBE' + (count !== 1 ? 'S' : '') + ' FIRED';
+  }
+} catch {}
+
+// Email capture — intercept form, submit via fetch, show success
+const form = document.getElementById('signal-form');
+if (form) {
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const data = new FormData(form);
+    fetch(form.action, { method: 'POST', body: data, headers: { 'Accept': 'application/json' } })
+      .then(r => {
+        if (r.ok) {
+          form.style.display = 'none';
+          document.getElementById('capture-success').style.display = 'block';
+        }
+      })
+      .catch(() => {});
+  });
+}
 </script>
 
 </body>

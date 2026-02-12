@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { shareProbeCard } from "./probeCard.js";
+import { shareProbeCard, shareScoreCard } from "./probeCard.js";
 
 /*
   DRIFTFIELD — Serendipity Engine
@@ -895,11 +895,47 @@ export default function DriftfieldApp() {
                     <span style={{ color: pc, marginRight: 6 }}>·</span>{f}
                   </div>
                 ))}
-                <div style={{ marginTop: 8 }}>
+                <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+                  <Btn onClick={() => shareScoreCard(dayScore.score, dayScore.factors)} color={pc} small>SHARE SCORE</Btn>
                   <Btn onClick={() => { setDaily(null); setDayScore(null); }} dim small>RECALIBRATE</Btn>
                 </div>
               </Section>
             )}
+
+            {/* Weekly drift report */}
+            {(() => {
+              const weekAgo = Date.now() - 7 * 86400000;
+              const weekProbes = probeHistory.filter(p => p.timestamp > weekAgo);
+              const weekEvents = events.filter(e => e.timestamp > weekAgo);
+              if (weekProbes.length + weekEvents.length < 1) return null;
+
+              const dayCounts = {};
+              [...weekProbes, ...weekEvents].forEach(item => {
+                const day = new Date(item.timestamp).toLocaleDateString(undefined, { weekday: 'short' });
+                dayCounts[day] = (dayCounts[day] || 0) + 1;
+              });
+              const topDay = Object.entries(dayCounts).sort((a, b) => b[1] - a[1])[0];
+
+              const weekPatterns = analyzePatterns(weekEvents);
+              const topPattern = weekPatterns.patterns[0];
+
+              return (
+                <Section title="WEEKLY DRIFT REPORT">
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+                    <Stat label="PROBES" value={weekProbes.length} sub="this week" color={pc} />
+                    <Stat label="EVENTS" value={weekEvents.length} sub="logged" color={pc} />
+                    <Stat label="PEAK DAY" value={topDay?.[0] || "—"} sub={topDay ? `${topDay[1]} activity` : ""} color={pc} />
+                  </div>
+                  {topPattern && (
+                    <div style={{ padding: "8px 10px", background: `${pc}08`, borderRadius: 4, fontSize: 10, color: "#888", lineHeight: 1.5 }}>
+                      <span style={{ color: pc, fontSize: 8, letterSpacing: 1, textTransform: "uppercase" }}>{topPattern.type}</span>
+                      <span style={{ margin: "0 6px", color: "#333" }}>·</span>
+                      {topPattern.label}
+                    </div>
+                  )}
+                </Section>
+              );
+            })()}
           </>
         )}
 
