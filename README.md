@@ -129,4 +129,4 @@ Both are privacy-first, cookie-free, and GDPR-compliant.
 
 ## License
 
-MIT
+All rights reserved. See [LICENSE](LICENSE) for details.

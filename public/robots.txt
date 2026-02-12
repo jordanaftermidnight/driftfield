@@ -1,0 +1,30 @@
+User-agent: *
+Allow: /driftfield/
+Allow: /driftfield/app/
+Disallow: /driftfield/assets/
+Disallow: /driftfield/sw.js
+Disallow: /driftfield/workbox-*
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: FacebookBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
