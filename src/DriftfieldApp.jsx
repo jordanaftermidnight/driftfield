@@ -243,7 +243,13 @@ function calculateField(entropy, birth, now) {
   const polarity = composite >= 0 ? "positive" : "negative";
   const magnitude = Math.min(Math.abs(composite) * 2.5, 1);
 
-  return { composite, polarity, magnitude, bio, lunar, temporal, sign, bioComposite };
+  const resonance = (
+    (bio ? Math.max(bio.physical.value, bio.emotional.value, bio.intuitive.value) : 0) * 0.3 +
+    lunar.energy * 0.35 +
+    temporal.energy * 0.35
+  );
+
+  return { composite, polarity, magnitude, bio, lunar, temporal, sign, bioComposite, resonance };
 }
 
 // ═══════════════════════════════════════════
@@ -337,8 +343,61 @@ const PROBE_ACTIONS = [
   { id: 7, label: "Say Yes", desc: "The next invitation, suggestion, or opportunity — take it without analysis.", icon: "✦" },
 ];
 
+function weightActions(field) {
+  const w = new Array(8).fill(1);
+  if (!field) return w;
+  const { lunar, temporal, bio, resonance } = field;
+  const ln = lunar?.normalized ?? 0.5;
+  const te = temporal?.energy ?? 0.5;
+  const tn = temporal?.name ?? "";
+  const waxing = ln < 0.5;
+  const fullish = ln > 0.4 && ln < 0.6;
+  const waning = ln >= 0.5;
+
+  // Seek Novelty — high temporal energy, waxing moon
+  if (te > 0.7) w[0] += 0.5;
+  if (waxing) w[0] += 0.3;
+
+  // Talk to Stranger — morning/twilight, waxing
+  if (tn === "Morning Ascent" || tn === "Twilight Gate") w[1] += 0.6;
+  if (waxing) w[1] += 0.3;
+
+  // Follow the Thread — afternoon drift, intuitive peak
+  if (tn === "Afternoon Drift") w[2] += 0.6;
+  if (bio?.intuitive?.value > 0.5) w[2] += 0.4;
+
+  // Share Something — full moon, solar apex, physical peak
+  if (fullish) w[3] += 0.5;
+  if (tn === "Solar Apex") w[3] += 0.5;
+  if (bio?.physical?.value > 0.5) w[3] += 0.3;
+
+  // Break a Pattern — emotional peak
+  if (bio?.emotional?.value > 0.5) w[4] += 0.5;
+
+  // Wait & Receive — waning moon, night/void
+  if (waning) w[5] += 0.5;
+  if (tn === "Deep Void" || tn === "Night Descent") w[5] += 0.5;
+
+  // Revisit Old Ground — waning crescent, intellectual peak
+  if (ln > 0.75) w[6] += 0.5;
+  if (bio?.intellectual?.value > 0.5) w[6] += 0.4;
+
+  // Say Yes — dawn gate, emotional peak, high resonance
+  if (tn === "Dawn Gate") w[7] += 0.5;
+  if (bio?.emotional?.value > 0.5) w[7] += 0.3;
+  if (resonance > 0.7) w[7] += 0.4;
+
+  return w;
+}
+
 function generateProbe(intention, entropy, field) {
-  const action = PROBE_ACTIONS[entropy.direction.actionSeed];
+  // Cycle-weighted action selection
+  const weights = weightActions(field);
+  const seeds = Array.from(entropy.rawData.slice(4, 12));
+  const scored = weights.map((w, i) => w * (seeds[i] / 255));
+  const actionIdx = scored.indexOf(Math.max(...scored));
+  const action = PROBE_ACTIONS[actionIdx];
+
   const bearing = entropy.direction.angle;
   const strength = entropy.anomalyScore;
 
@@ -358,6 +417,8 @@ function generateProbe(intention, entropy, field) {
     polarityRaw: entropy.polarityRaw,
     fieldMagnitude: field.magnitude,
     timestamp: Date.now(),
+    followed: false,
+    followedAt: null,
     entropyDetail: {
       shannon: entropy.shannon.toFixed(4),
       chi2: entropy.chi.normalized.toFixed(4),
@@ -714,10 +775,22 @@ export default function DriftfieldApp() {
     setProbeHistory(prev => [...prev.slice(-29), p]);
   };
 
+  const markProbeFollowed = (timestamp) => {
+    setProbeHistory(prev => prev.map(p =>
+      p.timestamp === timestamp ? { ...p, followed: true, followedAt: Date.now() } : p
+    ));
+    if (probe && probe.timestamp === timestamp) {
+      setProbe(prev => ({ ...prev, followed: true, followedAt: Date.now() }));
+    }
+  };
+
+  // Linked probe for event logging
+  const [linkedProbeId, setLinkedProbeId] = useState(null);
+
   const addEvent = () => {
     if (!eventText.trim()) return;
-    setEvents(prev => [...prev, { text: eventText.trim(), polarity: eventPol, category: eventCat.trim() || null, timestamp: Date.now(), id: Date.now() }]);
-    setEventText(""); setEventCat("");
+    setEvents(prev => [...prev, { text: eventText.trim(), polarity: eventPol, category: eventCat.trim() || null, linkedProbeId: linkedProbeId || null, timestamp: Date.now(), id: Date.now() }]);
+    setEventText(""); setEventCat(""); setLinkedProbeId(null);
   };
 
   const submitDaily = () => {
@@ -752,6 +825,20 @@ export default function DriftfieldApp() {
           <div style={{ fontSize: 7, color: "#3a3a50", letterSpacing: 2 }}>
             ENTROPY × CYCLE × ATTENTION × ACTION
           </div>
+          {(() => {
+            const allDates = new Set();
+            probeHistory.filter(p => p.followed).forEach(p => allDates.add(new Date(p.followedAt || p.timestamp).toDateString()));
+            events.forEach(e => allDates.add(new Date(e.timestamp).toDateString()));
+            if (allDates.size < 2) return null;
+            let streak = 0;
+            const d = new Date();
+            while (true) {
+              if (allDates.has(d.toDateString())) { streak++; d.setDate(d.getDate() - 1); }
+              else break;
+            }
+            if (streak < 2) return null;
+            return <div style={{ fontSize: 8, color: "#ffd93d80", marginTop: 2, letterSpacing: 1 }}>● {streak}-DAY STREAK</div>;
+          })()}
         </div>
 
         {/* ═══ SCAN TAB ═══ */}
@@ -778,6 +865,16 @@ export default function DriftfieldApp() {
                 {field ? (field.polarity === "positive" ? "+" : "−") + (field.magnitude * 100).toFixed(0) : "—"}
               </div>
               <div style={{ fontSize: 8, color: "#555", letterSpacing: 2 }}>COMPOSITE FIELD STRENGTH</div>
+              {field?.resonance > 0.75 && (
+                <div style={{ fontSize: 9, color: "#ffd93d", marginTop: 4, letterSpacing: 1 }}>
+                  ◈ HIGH RESONANCE — optimal probe window
+                </div>
+              )}
+              {field?.resonance > 0.6 && field?.resonance <= 0.75 && (
+                <div style={{ fontSize: 9, color: "#ffd93d80", marginTop: 4, letterSpacing: 1 }}>
+                  ◈ RISING — good conditions
+                </div>
+              )}
             </div>
 
             {/* Scan controls */}
@@ -936,6 +1033,51 @@ export default function DriftfieldApp() {
                 </Section>
               );
             })()}
+
+            {/* Feedback loop */}
+            {(() => {
+              const followed = probeHistory.filter(p => p.followed);
+              const linked = events.filter(e => e.linkedProbeId);
+              if (followed.length === 0 && linked.length === 0) return null;
+
+              // Group by action type
+              const byAction = {};
+              followed.forEach(p => {
+                const key = p.action.label;
+                if (!byAction[key]) byAction[key] = { icon: p.action.icon, followed: 0, total: 0, outcomes: { positive: 0, negative: 0, neutral: 0 } };
+                byAction[key].followed++;
+              });
+              probeHistory.forEach(p => {
+                const key = p.action.label;
+                if (!byAction[key]) byAction[key] = { icon: p.action.icon, followed: 0, total: 0, outcomes: { positive: 0, negative: 0, neutral: 0 } };
+                byAction[key].total++;
+              });
+              linked.forEach(e => {
+                const p = probeHistory.find(pr => pr.timestamp === e.linkedProbeId);
+                if (p && byAction[p.action.label]) {
+                  byAction[p.action.label].outcomes[e.polarity || "neutral"]++;
+                }
+              });
+
+              return (
+                <Section title="FEEDBACK LOOP">
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+                    <Stat label="FOLLOW-THROUGH" value={`${followed.length}/${probeHistory.length}`} sub={probeHistory.length > 0 ? `${(followed.length / probeHistory.length * 100).toFixed(0)}%` : ""} color={pc} />
+                    <Stat label="LINKED OUTCOMES" value={linked.length} sub="events → probes" color={pc} />
+                  </div>
+                  {Object.entries(byAction).filter(([, v]) => v.followed > 0).map(([label, v]) => (
+                    <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: "1px solid #1a1a2e", fontSize: 9 }}>
+                      <span style={{ color: "#888" }}>{v.icon} {label}</span>
+                      <span style={{ color: "#555" }}>
+                        {v.followed}/{v.total}
+                        {v.outcomes.positive > 0 && <span style={{ color: "#00ff8c", marginLeft: 6 }}>+{v.outcomes.positive}</span>}
+                        {v.outcomes.negative > 0 && <span style={{ color: "#ff3c50", marginLeft: 4 }}>-{v.outcomes.negative}</span>}
+                      </span>
+                    </div>
+                  ))}
+                </Section>
+              );
+            })()}
           </>
         )}
 
@@ -958,6 +1100,11 @@ export default function DriftfieldApp() {
                   marginBottom: 10,
                 }}
               />
+              {field?.resonance > 0.7 && (
+                <div style={{ fontSize: 9, color: "#ffd93d80", marginBottom: 8, textAlign: "center" }}>
+                  ◈ Field resonance is high
+                </div>
+              )}
               <Btn onClick={fireProbe} color={pc} full>⟐ FIRE PROBE</Btn>
             </Section>
 
@@ -1002,10 +1149,17 @@ export default function DriftfieldApp() {
                   </Section>
                 )}
 
-                <div style={{ textAlign: "center", marginBottom: 12 }}>
+                <div style={{ textAlign: "center", marginBottom: 12, display: "flex", justifyContent: "center", gap: 8 }}>
                   <Btn onClick={() => shareProbeCard(probe)} color={pColors[probe.polarity]} small>
                     SHARE PROBE
                   </Btn>
+                  {probe.followed ? (
+                    <Btn color={pColors[probe.polarity]} small dim>✓ DID IT</Btn>
+                  ) : (
+                    <Btn onClick={() => markProbeFollowed(probe.timestamp)} color="#ffd93d" small>
+                      DID IT
+                    </Btn>
+                  )}
                 </div>
               </>
             )}
@@ -1014,13 +1168,24 @@ export default function DriftfieldApp() {
             {probeHistory.length > 0 && (
               <Section title={`PROBE HISTORY · ${probeHistory.length}`}>
                 {[...probeHistory].reverse().slice(0, 10).map((p, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: "1px solid #1a1a2e", fontSize: 10 }}>
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: "1px solid #1a1a2e", fontSize: 10 }}>
                     <div>
                       <span style={{ color: pColors[p.polarity], marginRight: 6 }}>{p.action.icon}</span>
                       <span style={{ color: "#888" }}>{p.action.label}</span>
                       <span style={{ color: "#444", marginLeft: 6 }}>{p.compassDir} {p.bearing}°</span>
                     </div>
-                    <span style={{ color: "#333", fontSize: 8 }}>{new Date(p.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {p.followed ? (
+                        <span style={{ fontSize: 8, color: "#ffd93d60" }}>✓</span>
+                      ) : (
+                        <button onClick={() => markProbeFollowed(p.timestamp)} style={{
+                          background: "transparent", border: "1px solid #ffd93d30", borderRadius: 3,
+                          color: "#ffd93d", fontSize: 7, padding: "2px 6px", cursor: "pointer",
+                          fontFamily: "monospace", letterSpacing: 1,
+                        }}>DID IT</button>
+                      )}
+                      <span style={{ color: "#333", fontSize: 8 }}>{new Date(p.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
                   </div>
                 ))}
               </Section>
@@ -1062,6 +1227,29 @@ export default function DriftfieldApp() {
                   />
                 </div>
               </div>
+              {/* Link to recent probe */}
+              {(() => {
+                const recent = probeHistory.filter(p => Date.now() - p.timestamp < 86400000);
+                if (recent.length === 0) return null;
+                return (
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 8, color: "#444", marginBottom: 4, letterSpacing: 1 }}>LINK TO PROBE (optional)</div>
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      {recent.slice(-5).reverse().map(p => (
+                        <button key={p.timestamp} onClick={() => setLinkedProbeId(linkedProbeId === p.timestamp ? null : p.timestamp)} style={{
+                          padding: "3px 8px", borderRadius: 3, fontSize: 8,
+                          background: linkedProbeId === p.timestamp ? `${pColors[p.polarity]}20` : "#0a0a16",
+                          border: `1px solid ${linkedProbeId === p.timestamp ? pColors[p.polarity] + "50" : "#2a2a45"}`,
+                          color: linkedProbeId === p.timestamp ? pColors[p.polarity] : "#555",
+                          cursor: "pointer", fontFamily: "monospace",
+                        }}>
+                          {p.action.icon} {p.action.label} · {new Date(p.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               <Btn onClick={addEvent} color={pc} full>LOG</Btn>
             </Section>
 
@@ -1081,25 +1269,82 @@ export default function DriftfieldApp() {
               </Section>
             )}
 
-            {/* Timeline */}
-            <div style={{ fontSize: 9, color: "#444", letterSpacing: 1, marginBottom: 6 }}>TIMELINE · {events.length}</div>
-            {events.length === 0 ? (
+            {/* Drift Timeline */}
+            <div style={{ fontSize: 9, color: "#444", letterSpacing: 1, marginBottom: 6 }}>DRIFT TIMELINE</div>
+            {events.length === 0 && probeHistory.filter(p => p.followed).length === 0 ? (
               <div style={{ color: "#2a2a40", fontSize: 10, textAlign: "center", padding: 24 }}>No events yet. Start noticing.</div>
-            ) : (
-              events.slice(-20).reverse().map(evt => (
-                <div key={evt.id} style={{
-                  padding: "7px 10px", marginBottom: 4,
-                  borderLeft: `2px solid ${pColors[evt.polarity]}35`,
-                  background: "#12121e", borderRadius: "0 5px 5px 0",
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: "#444", marginBottom: 1 }}>
-                    <span style={{ color: pColors[evt.polarity] }}>{evt.polarity === "positive" ? "＋" : evt.polarity === "negative" ? "−" : "○"}{evt.category ? ` · ${evt.category}` : ""}</span>
-                    <span>{new Date(evt.timestamp).toLocaleDateString()} {new Date(evt.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+            ) : (() => {
+              // Build merged timeline: followed probes + all events
+              const linkedEventIds = new Set();
+              const followedProbes = probeHistory.filter(p => p.followed).slice(-20);
+              const items = [];
+
+              // Add probes with their linked events nested
+              followedProbes.forEach(p => {
+                const linkedEvts = events.filter(e => e.linkedProbeId === p.timestamp);
+                linkedEvts.forEach(e => linkedEventIds.add(e.id));
+                items.push({ type: "probe", data: p, linkedEvents: linkedEvts, ts: p.timestamp });
+              });
+
+              // Add unlinked events
+              events.filter(e => !linkedEventIds.has(e.id)).forEach(e => {
+                items.push({ type: "event", data: e, ts: e.timestamp });
+              });
+
+              items.sort((a, b) => b.ts - a.ts);
+
+              return items.slice(0, 25).map((item, i) => {
+                if (item.type === "probe") {
+                  return (
+                    <div key={`p-${item.data.timestamp}`} style={{ marginBottom: 6 }}>
+                      <div style={{
+                        padding: "6px 10px", background: "#12121e", borderRadius: "5px",
+                        borderLeft: `2px solid ${pColors[item.data.polarity]}35`,
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: "#444", marginBottom: 2 }}>
+                          <span style={{ color: pColors[item.data.polarity] }}>
+                            {item.data.action.icon} {item.data.action.label} — {item.data.compassDir} {item.data.bearing}°
+                          </span>
+                          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                            <span style={{ color: "#ffd93d60" }}>✓</span>
+                            {new Date(item.data.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                        {item.data.intention && (
+                          <div style={{ fontSize: 9, color: "#666", fontStyle: "italic" }}>"{item.data.intention}"</div>
+                        )}
+                      </div>
+                      {item.linkedEvents.map(evt => (
+                        <div key={evt.id} style={{
+                          marginLeft: 16, padding: "5px 10px", marginTop: 2,
+                          borderLeft: `2px solid ${pColors[evt.polarity]}25`,
+                          background: "#0e0e1a", borderRadius: "0 4px 4px 0",
+                        }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: "#444" }}>
+                            <span style={{ color: pColors[evt.polarity] }}>{evt.polarity === "positive" ? "＋" : evt.polarity === "negative" ? "−" : "○"}{evt.category ? ` · ${evt.category}` : ""}</span>
+                            <span>{new Date(evt.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                          </div>
+                          <div style={{ fontSize: 10, color: "#999" }}>{evt.text}</div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+                return (
+                  <div key={`e-${item.data.id}`} style={{
+                    padding: "7px 10px", marginBottom: 4,
+                    borderLeft: `2px solid ${pColors[item.data.polarity]}35`,
+                    background: "#12121e", borderRadius: "0 5px 5px 0",
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: "#444", marginBottom: 1 }}>
+                      <span style={{ color: pColors[item.data.polarity] }}>{item.data.polarity === "positive" ? "＋" : item.data.polarity === "negative" ? "−" : "○"}{item.data.category ? ` · ${item.data.category}` : ""}</span>
+                      <span>{new Date(item.data.timestamp).toLocaleDateString()} {new Date(item.data.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: "#999" }}>{item.data.text}</div>
                   </div>
-                  <div style={{ fontSize: 10, color: "#999" }}>{evt.text}</div>
-                </div>
-              ))
-            )}
+                );
+              });
+            })()}
             {events.length > 0 && (
               <div style={{ marginTop: 8 }}>
                 <Btn onClick={() => { setEvents([]); save("df_events", []); }} dim small>CLEAR EVENTS</Btn>
