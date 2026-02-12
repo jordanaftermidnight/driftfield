@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Driftfield — Serendipity Engine</title>
+<meta name="description" content="Detect, amplify, and follow probability currents. Entropy-driven serendipity navigation based on real math and behavioral science.">
+<meta property="og:title" content="Driftfield — Serendipity Engine">
+<meta property="og:description" content="Randonautica told you where to go. This tells you what to do.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://jordanaftermidnight.github.io/driftfield/">
+<meta property="og:image" content="https://jordanaftermidnight.github.io/driftfield/og-image.png">
+<meta property="og:site_name" content="Driftfield">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Driftfield — Serendipity Engine">
+<meta name="twitter:description" content="Randonautica told you where to go. This tells you what to do.">
+<meta name="twitter:image" content="https://jordanaftermidnight.github.io/driftfield/og-image.png">
+<meta name="theme-color" content="#06060e">
+<link rel="icon" type="image/svg+xml" href="/driftfield/favicon.svg">
+<link rel="apple-touch-icon" href="/driftfield/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06060e;
+    --surface: #0c0c18;
+    --border: #14142a;
+    --text: #a8a8c0;
+    --text-dim: #55556a;
+    --text-bright: #d8d8f0;
+    --accent: #00ff8c;
+    --accent-dim: #00ff8c20;
+    --negative: #ff3c50;
+    --purple: #c084fc;
+    --gold: #ffd93d;
+    --serif: 'Cormorant Garamond', Georgia, serif;
+    --mono: 'IBM Plex Mono', 'Courier New', monospace;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--serif);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  #bg-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: #1a1a30; border-radius: 2px; }
+
+  section { position: relative; z-index: 1; }
+  .container { max-width: 820px; margin: 0 auto; padding: 0 24px; }
+
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 60px 24px;
+    position: relative;
+  }
+
+  .hero-sigil {
+    font-size: 14px;
+    letter-spacing: 12px;
+    color: var(--text-dim);
+    margin-bottom: 32px;
+    font-family: var(--mono);
+    opacity: 0;
+    animation: fadeUp 1s ease 0.2s forwards;
+  }
+
+  .hero h1 {
+    font-family: var(--serif);
+    font-size: clamp(42px, 8vw, 80px);
+    font-weight: 300;
+    letter-spacing: 0.06em;
+    color: var(--text-bright);
+    line-height: 1.1;
+    margin-bottom: 24px;
+    opacity: 0;
+    animation: fadeUp 1s ease 0.4s forwards;
+  }
+
+  .hero h1 em {
+    font-style: italic;
+    color: var(--accent);
+    text-shadow: 0 0 60px var(--accent-dim);
+  }
+
+  .hero-sub {
+    font-size: clamp(16px, 2.5vw, 20px);
+    font-weight: 300;
+    color: var(--text);
+    max-width: 540px;
+    line-height: 1.7;
+    margin-bottom: 40px;
+    opacity: 0;
+    animation: fadeUp 1s ease 0.6s forwards;
+  }
+
+  .hero-tagline {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    margin-bottom: 48px;
+    opacity: 0;
+    animation: fadeUp 1s ease 0.7s forwards;
+  }
+
+  .cta-group {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+    opacity: 0;
+    animation: fadeUp 1s ease 0.9s forwards;
+  }
+
+  .cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 32px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 3px;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+
+  .cta-primary {
+    background: var(--accent);
+    color: var(--bg);
+    border: 1px solid var(--accent);
+  }
+  .cta-primary:hover {
+    background: transparent;
+    color: var(--accent);
+    box-shadow: 0 0 30px var(--accent-dim);
+  }
+
+  .cta-ghost {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+  .cta-ghost:hover {
+    border-color: var(--text-dim);
+    color: var(--text);
+  }
+
+  .scroll-hint {
+    position: absolute;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 4px;
+    opacity: 0;
+    animation: fadeUp 1s ease 1.2s forwards, pulse 3s ease 2s infinite;
+  }
+
+  .pitch { padding: 120px 24px; }
+
+  .pitch-line {
+    font-size: clamp(20px, 3.5vw, 32px);
+    font-weight: 300;
+    line-height: 1.8;
+    color: var(--text);
+    max-width: 700px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .pitch-line strong { color: var(--text-bright); font-weight: 400; }
+  .pitch-line em { color: var(--accent); font-style: italic; }
+
+  .features { padding: 80px 24px 120px; }
+
+  .features-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 6px;
+    color: var(--text-dim);
+    text-align: center;
+    margin-bottom: 60px;
+  }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2px;
+  }
+
+  .feature-card {
+    background: var(--surface);
+    padding: 36px 32px;
+    border: 1px solid var(--border);
+    transition: all 0.4s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .feature-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+
+  .feature-card:hover::before { opacity: 0.5; }
+  .feature-card:hover { background: #0e0e1c; }
+
+  .feature-icon { font-size: 24px; margin-bottom: 16px; display: block; }
+
+  .feature-name {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+
+  .feature-desc {
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--text);
+    font-weight: 300;
+  }
+
+  .how { padding: 100px 24px 120px; }
+
+  .how-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 6px;
+    color: var(--text-dim);
+    text-align: center;
+    margin-bottom: 60px;
+  }
+
+  .how-steps { max-width: 600px; margin: 0 auto; }
+
+  .how-step {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 48px;
+    align-items: flex-start;
+  }
+
+  .how-num {
+    font-family: var(--mono);
+    font-size: 32px;
+    font-weight: 300;
+    color: var(--border);
+    line-height: 1;
+    flex-shrink: 0;
+    width: 40px;
+    text-align: right;
+  }
+
+  .how-step-content h3 {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 400;
+    color: var(--text-bright);
+    margin-bottom: 8px;
+  }
+
+  .how-step-content p {
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--text);
+    font-weight: 300;
+  }
+
+  .science {
+    padding: 80px 24px 120px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .science-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 6px;
+    color: var(--text-dim);
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  .science-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 32px;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  .science-item h4 {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--purple);
+    margin-bottom: 8px;
+  }
+
+  .science-item p {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text);
+    font-weight: 300;
+  }
+
+  .compare { padding: 100px 24px; text-align: center; }
+
+  .compare-quote {
+    font-size: clamp(22px, 4vw, 36px);
+    font-weight: 300;
+    font-style: italic;
+    color: var(--text-bright);
+    max-width: 640px;
+    margin: 0 auto 16px;
+    line-height: 1.5;
+  }
+
+  .compare-quote span { color: var(--accent); }
+
+  .compare-sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+  }
+
+  .final { padding: 120px 24px; text-align: center; }
+
+  .final h2 {
+    font-family: var(--serif);
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 300;
+    color: var(--text-bright);
+    margin-bottom: 16px;
+  }
+
+  .final p {
+    font-size: 17px;
+    color: var(--text);
+    font-weight: 300;
+    margin-bottom: 40px;
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.7;
+  }
+
+  footer {
+    padding: 40px 24px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+  }
+
+  .footer-links {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 16px;
+  }
+
+  .footer-links a {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-decoration: none;
+    transition: color 0.3s;
+  }
+
+  .footer-links a:hover { color: var(--accent); }
+
+  .footer-copy {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: #2a2a40;
+    letter-spacing: 2px;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @media (max-width: 600px) {
+    .feature-grid { grid-template-columns: 1fr; }
+    .hero { padding: 40px 20px; }
+    .cta { padding: 12px 24px; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<section class="hero">
+  <div class="hero-sigil">&#x27D0; &#x25C8; &#x27D0;</div>
+  <h1>The noise has<br>a <em>direction</em></h1>
+  <p class="hero-sub">
+    An entropy-driven serendipity engine that detects probability currents,
+    amplifies your luck surface area, and tells you where chance is flowing.
+  </p>
+  <div class="hero-tagline">DETECT &middot; AMPLIFY &middot; FOLLOW</div>
+  <div class="cta-group">
+    <a href="app/" class="cta cta-primary">OPEN DETECTOR</a>
+    <a href="#how" class="cta cta-ghost">HOW IT WORKS</a>
+  </div>
+  <div class="scroll-hint">&#x25BD; SCROLL</div>
+</section>
+
+<section class="pitch">
+  <div class="container">
+    <p class="pitch-line reveal">
+      Luck isn't magic. It's <strong>surface area</strong> &mdash; the intersection
+      of <strong>preparation</strong>, <strong>exposure</strong>, and <em>attention</em>.
+      Lucky people don't have better odds. They have <strong>wider nets</strong>.
+    </p>
+  </div>
+</section>
+
+<section class="features">
+  <div class="container">
+    <div class="features-label reveal">FIVE SIGNAL LAYERS</div>
+    <div class="feature-grid">
+      <div class="feature-card reveal">
+        <span class="feature-icon">&#x25C9;</span>
+        <div class="feature-name">ENTROPY ENGINE</div>
+        <p class="feature-desc">
+          Samples thousands of bytes from cryptographic entropy. Runs Shannon analysis,
+          chi-squared tests, serial correlation, runs detection, and Monte Carlo estimation.
+          Deviations from randomness become the signal.
+        </p>
+      </div>
+      <div class="feature-card reveal">
+        <span class="feature-icon">&#x27D0;</span>
+        <div class="feature-name">PROBE SYSTEM</div>
+        <p class="feature-desc">
+          Set an intention. Fire a probe. 4096 bytes of entropy are sampled and analyzed.
+          The anomaly pattern derives a compass bearing and an action.
+          Like Randonautica &mdash; but it tells you what to <em>do</em>, not where to go.
+        </p>
+      </div>
+      <div class="feature-card reveal">
+        <span class="feature-icon">&#x1F315;</span>
+        <div class="feature-name">CYCLE LAYER</div>
+        <p class="feature-desc">
+          Biorhythm cycles anchored to your birth chart. Lunar phase with interpretive context.
+          Temporal gates &mdash; circadian energy windows where the probability field shifts.
+        </p>
+      </div>
+      <div class="feature-card reveal">
+        <span class="feature-icon">&#x25C8;</span>
+        <div class="feature-name">SYNCHRONICITY LOG</div>
+        <p class="feature-desc">
+          Track coincidences, unexpected encounters, repeating patterns.
+          The pattern detector finds temporal clusters, thematic repetitions,
+          polarity streaks, and frequency acceleration.
+        </p>
+      </div>
+      <div class="feature-card reveal">
+        <span class="feature-icon">&#x27C1;</span>
+        <div class="feature-name">DECISION EVALUATOR</div>
+        <p class="feature-desc">
+          Facing a choice? Score each option by its serendipity surface area.
+          Novelty, weak-tie exposure, reversibility, optionality, gut signal.
+          Which path exposes you to more chance?
+        </p>
+      </div>
+      <div class="feature-card reveal">
+        <span class="feature-icon">&#x27A4;</span>
+        <div class="feature-name">ATTENTION AMPLIFIER</div>
+        <p class="feature-desc">
+          The core insight: attention is the multiplier.
+          Notice &rarr; Log &rarr; Pattern &rarr; Act &rarr; Notice more.
+          Each cycle sharpens the perceptual infrastructure that lucky people already have.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="how" id="how">
+  <div class="container">
+    <div class="how-label reveal">THE PROCESS</div>
+    <div class="how-steps">
+      <div class="how-step reveal">
+        <div class="how-num">01</div>
+        <div class="how-step-content">
+          <h3>Calibrate your field</h3>
+          <p>Set your birth data to anchor biorhythm cycles. Answer daily questions about your
+          actual exposure to novelty, strangers, and the unexpected. This measures your real luck surface area.</p>
+        </div>
+      </div>
+      <div class="how-step reveal">
+        <div class="how-num">02</div>
+        <div class="how-step-content">
+          <h3>Fire entropy probes</h3>
+          <p>Set an intention &mdash; a question, curiosity, or desire. The probe samples cryptographic entropy
+          and analyzes deviations from perfect randomness. The anomaly pattern produces a direction and an action to take.</p>
+        </div>
+      </div>
+      <div class="how-step reveal">
+        <div class="how-num">03</div>
+        <div class="how-step-content">
+          <h3>Follow and log</h3>
+          <p>Take the suggested action. Log what happens &mdash; coincidences, encounters, patterns.
+          The system detects clusters in your events: time-of-day patterns, recurring themes, polarity streaks, frequency shifts.</p>
+        </div>
+      </div>
+      <div class="how-step reveal">
+        <div class="how-num">04</div>
+        <div class="how-step-content">
+          <h3>The loop amplifies</h3>
+          <p>Each cycle of noticing and logging sharpens your peripheral attention &mdash; the single strongest
+          predictor of &ldquo;luckiness&rdquo; in the research. The tool doesn't create luck. It trains you to see the currents.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="science">
+  <div class="container">
+    <div class="science-label reveal">BUILT ON RESEARCH</div>
+    <div class="science-grid">
+      <div class="science-item reveal">
+        <h4>WISEMAN (2003)</h4>
+        <p>The Luck Factor. Lucky people maximize chance opportunities through relaxed attention,
+        openness to new experience, and listening to intuition.</p>
+      </div>
+      <div class="science-item reveal">
+        <h4>GRANOVETTER (1973)</h4>
+        <p>The Strength of Weak Ties. Acquaintances and strangers generate more novel opportunities
+        than close friends. Weak ties are probability bridges.</p>
+      </div>
+      <div class="science-item reveal">
+        <h4>BUSCH (2020)</h4>
+        <p>The Serendipity Mindset. Serendipity is a skill, not an accident.
+        It can be cultivated through specific attentional and behavioral practices.</p>
+      </div>
+      <div class="science-item reveal">
+        <h4>SHANNON (1948)</h4>
+        <p>Information entropy measures uncertainty in data.
+        Deviations from maximum entropy indicate structure &mdash; signal in the noise.</p>
+      </div>
+      <div class="science-item reveal">
+        <h4>JUNG (1952)</h4>
+        <p>Synchronicity: An Acausal Connecting Principle.
+        Meaningful coincidences as a lens for understanding non-causal patterns in experience.</p>
+      </div>
+      <div class="science-item reveal">
+        <h4>TALEB (2012)</h4>
+        <p>Antifragile. Optionality and exposure to positive asymmetry.
+        Maximize upside, minimize downside. Luck favors the prepared surface area.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="compare">
+  <div class="container reveal">
+    <p class="compare-quote">
+      Randonautica told you <span>where to go</span>.<br>
+      This tells you <span>what to do</span>.
+    </p>
+    <p class="compare-sub">SAME ENTROPY. BETTER OUTPUT.</p>
+  </div>
+</section>
+
+<section class="final">
+  <div class="container reveal">
+    <h2>The field is already moving</h2>
+    <p>
+      Every moment carries probability currents you're not seeing.
+      The detector doesn't create luck &mdash; it makes the invisible visible.
+    </p>
+    <div class="cta-group">
+      <a href="app/" class="cta cta-primary">OPEN DETECTOR</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-links">
+    <a href="app/">DETECTOR</a>
+    <a href="https://github.com/jordanaftermidnight/driftfield" target="_blank">GITHUB</a>
+  </div>
+  <div class="footer-copy">DRIFTFIELD &middot; ENTROPY &times; CYCLE &times; ATTENTION &times; ACTION</div>
+</footer>
+
+<script>
+const canvas = document.getElementById('bg-canvas');
+const ctx = canvas.getContext('2d');
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+resize();
+window.addEventListener('resize', resize);
+const particles = Array.from({ length: 50 }, () => ({
+  x: Math.random() * window.innerWidth,
+  y: Math.random() * window.innerHeight,
+  size: Math.random() * 1.5 + 0.5,
+  speed: Math.random() * 0.3 + 0.1,
+  drift: (Math.random() - 0.5) * 0.2,
+  opacity: Math.random() * 0.15 + 0.02,
+}));
+let frame = 0;
+function animate() {
+  frame++;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  particles.forEach(p => {
+    p.y -= p.speed;
+    p.x += p.drift + Math.sin(frame * 0.005 + p.x * 0.003) * 0.2;
+    if (p.y < -10) { p.y = canvas.height + 10; p.x = Math.random() * canvas.width; }
+    const flicker = 0.7 + 0.3 * Math.sin(frame * 0.02 + p.x * 0.01);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(0, 255, 140, ${p.opacity * flicker})`;
+    ctx.fill();
+  });
+  requestAnimationFrame(animate);
+}
+animate();
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
+}, { threshold: 0.15 });
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>
