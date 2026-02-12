@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { obfuscator } from 'rollup-obfuscator'
 import { resolve } from 'path'
 
 export default defineConfig({
@@ -51,11 +52,31 @@ export default defineConfig({
     }),
   ],
   build: {
+    sourcemap: false,
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
         app: resolve(__dirname, 'app/index.html'),
       },
+      plugins: [
+        obfuscator({
+          compact: true,
+          controlFlowFlattening: true,
+          controlFlowFlatteningThreshold: 0.5,
+          deadCodeInjection: true,
+          deadCodeInjectionThreshold: 0.2,
+          identifierNamesGenerator: 'hexadecimal',
+          renameGlobals: false,
+          selfDefending: true,
+          stringArray: true,
+          stringArrayThreshold: 0.5,
+          stringArrayEncoding: ['base64'],
+          stringArrayRotate: true,
+          stringArrayShuffle: true,
+          transformObjectKeys: true,
+          unicodeEscapeSequence: false,
+        }),
+      ],
     },
   },
 })
