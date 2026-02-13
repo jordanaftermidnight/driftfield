@@ -5,25 +5,24 @@ import { obfuscator } from 'rollup-obfuscator'
 import { resolve } from 'path'
 
 export default defineConfig({
-  base: '/driftfield/',
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      scope: '/driftfield/app/',
+      scope: '/app/',
       manifest: {
         name: 'Driftfield — Serendipity Engine',
         short_name: 'Driftfield',
         description: 'Entropy-driven serendipity navigation. Detect, amplify, and follow probability currents.',
-        start_url: '/driftfield/app/',
-        scope: '/driftfield/app/',
+        start_url: '/app/',
+        scope: '/app/',
         display: 'standalone',
         background_color: '#06060e',
         theme_color: '#06060e',
         icons: [
-          { src: '/driftfield/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/driftfield/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: '/driftfield/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {

@@ -1,9 +1,9 @@
 User-agent: *
-Allow: /driftfield/
-Allow: /driftfield/app/
-Disallow: /driftfield/assets/
-Disallow: /driftfield/sw.js
-Disallow: /driftfield/workbox-*
+Allow: /
+Allow: /app/
+Disallow: /assets/
+Disallow: /sw.js
+Disallow: /workbox-*
 
 User-agent: GPTBot
 Disallow: /

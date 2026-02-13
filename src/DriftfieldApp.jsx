@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { shareProbeCard, shareScoreCard } from "./probeCard.js";
+import { useAuth } from "./hooks/useAuth";
+import { AuthModal } from "./components/auth/AuthModal";
+import { PremiumModal } from "./components/auth/PremiumModal";
+import { canFireProbe, hasFeature } from "./lib/premium";
+import { trackAppOpen, trackTabView } from "./lib/analytics";
 
 /*
   DRIFTFIELD — Serendipity Engine
@@ -683,6 +688,9 @@ function Btn({ children, onClick, color = "#00ff8c", full, small, dim }) {
 // ═══════════════════════════════════════════
 
 export default function DriftfieldApp() {
+  const { isAuthenticated, user, profile, isPremium, signOut, supabaseConfigured } = useAuth();
+  const [showAuth, setShowAuth] = useState(false);
+  const [showPremium, setShowPremium] = useState(false);
   const [view, setView] = useState("field");
   const [loaded, setLoaded] = useState(false);
 
@@ -738,6 +746,9 @@ export default function DriftfieldApp() {
   // Save
   useEffect(() => { if (loaded) save("df_events", events); }, [events, loaded]);
   useEffect(() => { if (loaded) save("df_probes", probeHistory); }, [probeHistory, loaded]);
+
+  // Analytics
+  useEffect(() => { trackAppOpen(); }, []);
 
   // Scan
   const doScan = useCallback(() => {
@@ -839,6 +850,24 @@ export default function DriftfieldApp() {
             if (streak < 2) return null;
             return <div style={{ fontSize: 8, color: "#ffd93d80", marginTop: 2, letterSpacing: 1 }}>● {streak}-DAY STREAK</div>;
           })()}
+          {/* Auth button */}
+          {supabaseConfigured && (
+            <div style={{ marginTop: 6 }}>
+              {isAuthenticated ? (
+                <button onClick={signOut} style={{
+                  background: "transparent", border: "1px solid #2a2a45", borderRadius: 4,
+                  color: "#555", fontSize: 8, padding: "3px 10px", cursor: "pointer",
+                  fontFamily: "monospace", letterSpacing: 1,
+                }}>SIGN OUT</button>
+              ) : (
+                <button onClick={() => setShowAuth(true)} style={{
+                  background: `${pc}12`, border: `1px solid ${pc}40`, borderRadius: 4,
+                  color: pc, fontSize: 8, padding: "3px 10px", cursor: "pointer",
+                  fontFamily: "monospace", letterSpacing: 1,
+                }}>TUNE IN</button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ═══ SCAN TAB ═══ */}
@@ -1105,7 +1134,10 @@ export default function DriftfieldApp() {
                   ◈ Field resonance is high
                 </div>
               )}
-              <Btn onClick={fireProbe} color={pc} full>⟐ FIRE PROBE</Btn>
+              <Btn onClick={() => {
+                if (supabaseConfigured && !isAuthenticated) { setShowAuth(true); return; }
+                fireProbe();
+              }} color={pc} full>⟐ FIRE PROBE</Btn>
             </Section>
 
             {probe && (
@@ -1489,6 +1521,32 @@ export default function DriftfieldApp() {
               </div>
             </Section>
 
+            {/* Account */}
+            {supabaseConfigured && isAuthenticated && (
+              <Section title="ACCOUNT">
+                <div style={{ fontSize: 10, color: "#777", marginBottom: 8 }}>
+                  {user?.email}
+                  {isPremium && <span style={{ color: "#ffd93d", marginLeft: 8 }}>◆ PREMIUM</span>}
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {isPremium ? (
+                    <Btn onClick={async () => {
+                      const res = await fetch('/api/create-portal-session', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ customerId: profile?.stripe_customer_id }),
+                      });
+                      const data = await res.json();
+                      if (data.url) window.location.href = data.url;
+                    }} color="#ffd93d" small>MANAGE SUBSCRIPTION</Btn>
+                  ) : (
+                    <Btn onClick={() => setShowPremium(true)} color="#ffd93d" small>UPGRADE TO PREMIUM</Btn>
+                  )}
+                  <Btn onClick={signOut} dim small>SIGN OUT</Btn>
+                </div>
+              </Section>
+            )}
+
             <Section title="DATA">
               <div style={{ fontSize: 10, color: "#777", marginBottom: 8 }}>
                 {events.length} events · {probeHistory.length} probes · {daily ? "Calibrated today" : "Not calibrated today"}
@@ -1512,7 +1570,7 @@ export default function DriftfieldApp() {
       }}>
         <div style={{ display: "flex", maxWidth: 600, width: "100%", justifyContent: "space-around" }}>
           {navItems.map(item => (
-            <button key={item.id} onClick={() => setView(item.id)} style={{
+            <button key={item.id} onClick={() => { setView(item.id); trackTabView(item.id); }} style={{
               flex: 1, padding: "9px 0 7px", background: "transparent",
               border: "none", cursor: "pointer",
               borderTop: view === item.id ? `2px solid ${pc}` : "2px solid transparent",
@@ -1523,6 +1581,10 @@ export default function DriftfieldApp() {
           ))}
         </div>
       </div>
+
+      {/* Auth & Premium Modals */}
+      <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} />
+      <PremiumModal isOpen={showPremium} onClose={() => setShowPremium(false)} triggerLocation="probe_limit" />
     </div>
   );
 }
