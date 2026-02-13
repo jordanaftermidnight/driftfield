@@ -115,16 +115,16 @@ export function canFireProbe(profile) {
 // ============================================================
 export const PRICING = {
   monthly: {
-    amount: 399, // cents
-    display: '$3.99',
+    amount: 199, // cents
+    display: '$1.99',
     interval: 'month',
     stripePriceId: import.meta.env.VITE_STRIPE_PRICE_MONTHLY || '',
   },
   yearly: {
-    amount: 2499, // cents
-    display: '$24.99',
+    amount: 1199, // cents
+    display: '$11.99',
     interval: 'year',
-    savings: '48%',
+    savings: '50%',
     stripePriceId: import.meta.env.VITE_STRIPE_PRICE_YEARLY || '',
   },
 };

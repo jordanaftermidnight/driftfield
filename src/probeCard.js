@@ -9,8 +9,8 @@ export function generateProbeCard(probe) {
   canvas.height = size;
   const ctx = canvas.getContext("2d");
 
-  const color = probe.polarity === "positive" ? [0, 255, 140] : [255, 60, 80];
-  const accentHex = probe.polarity === "positive" ? "#00ff8c" : "#ff3c50";
+  const color = probe.polarity === "positive" ? [0, 229, 200] : [255, 60, 80];
+  const accentHex = probe.polarity === "positive" ? "#00e5c8" : "#ff3c50";
 
   // Background
   ctx.fillStyle = "#0a0a12";
@@ -207,8 +207,8 @@ export function generateScoreCard(score, factors) {
   const ctx = canvas.getContext("2d");
   const cx = size / 2;
 
-  const color = score >= 60 ? [0, 255, 140] : score >= 30 ? [255, 217, 61] : [255, 60, 80];
-  const accentHex = score >= 60 ? "#00ff8c" : score >= 30 ? "#ffd93d" : "#ff3c50";
+  const color = score >= 60 ? [0, 229, 200] : score >= 30 ? [255, 217, 61] : [255, 60, 80];
+  const accentHex = score >= 60 ? "#00e5c8" : score >= 30 ? "#ffd93d" : "#ff3c50";
 
   // Background
   ctx.fillStyle = "#0a0a12";
