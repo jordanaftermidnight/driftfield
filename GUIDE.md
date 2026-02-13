@@ -154,7 +154,7 @@ The math is real. The entropy analysis is real. Whether the "signal" means anyth
 
 ## Privacy
 
-All your data stays on your device in your browser's local storage. Nothing is sent to any server. If you clear your browser data, your Driftfield history will be erased.
+Without an account, all data stays on your device in localStorage. When you sign in, your data syncs to the cloud via Supabase so it's available across devices. You can use the app entirely offline — cloud sync is optional.
 
 ---
 

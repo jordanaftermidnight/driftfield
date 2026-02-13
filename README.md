@@ -4,7 +4,7 @@
 
 An entropy-driven serendipity engine that detects probability currents, amplifies your luck surface area, and provides actionable direction based on real math and behavioral science research.
 
-**[Live Demo](https://jordanaftermidnight.github.io/driftfield/) | [Open Engine](https://jordanaftermidnight.github.io/driftfield/app/)**
+**[Live](https://driftfield.vercel.app/) | [Open Engine](https://driftfield.vercel.app/app/)**
 
 ---
 
@@ -14,11 +14,11 @@ Driftfield combines five signal layers into a composite reading:
 
 1. **Entropy Engine** — Samples cryptographic entropy, runs statistical analysis (Shannon entropy, chi-squared, serial correlation, runs test, Monte Carlo estimation). Deviations from perfect randomness = signal.
 
-2. **Probe System** — Set an intention, fire a probe, get a compass bearing and action derived from the anomaly pattern in the entropy.
+2. **Probe System** — Set an intention, fire a probe, get a compass bearing and action derived from the anomaly pattern in the entropy. Cycle-weighted action selection based on lunar phase, biorhythm, and temporal gates.
 
 3. **Cycle Layer** — Biorhythm cycles from your birth date, lunar phase, and time-of-day energy windows. Personalized via your birth date.
 
-4. **Synchronicity Log** — Track coincidences with polarity and categories. The pattern detector finds temporal clusters, thematic repetitions, streaks, and frequency acceleration.
+4. **Synchronicity Log** — Track coincidences with polarity and categories. The pattern detector finds temporal clusters, thematic repetitions, streaks, and frequency acceleration. Link events to the probe that prompted them.
 
 5. **Decision Evaluator** — Compare two choices by their serendipity surface area: novelty, new connections, reversibility, optionality, gut signal.
 
@@ -30,12 +30,13 @@ Based on research by Wiseman (2003), Granovetter (1973), Busch (2020), and Shann
 
 ```bash
 npm install
+cp .env.example .env.local   # fill in your keys
 npm run dev
 ```
 
 The dev server serves:
-- Landing page at `http://localhost:5173/driftfield/`
-- App at `http://localhost:5173/driftfield/app/`
+- Landing page at `http://localhost:5173/`
+- App at `http://localhost:5173/app/`
 
 ### Build
 
@@ -46,9 +47,7 @@ npm run preview
 
 ### Deploy
 
-Push to `main` — GitHub Actions deploys to Pages automatically via `.github/workflows/deploy.yml`.
-
-Or manually enable GitHub Pages: Settings → Pages → Source → GitHub Actions.
+Push to `main` — Vercel auto-deploys via GitHub integration.
 
 ---
 
@@ -60,59 +59,69 @@ driftfield/
 ├── app/
 │   └── index.html          # React app entry point
 ├── src/
-│   ├── main.jsx            # React mount
-│   ├── DriftfieldApp.jsx   # Main component
-│   ├── probeCard.js        # Shareable probe card generator
-│   └── index.css           # Global styles
+│   ├── main.jsx            # React mount + routing
+│   ├── DriftfieldApp.jsx   # Main component (all tabs)
+│   ├── probeCard.js        # Shareable probe/score card generator
+│   ├── lib/
+│   │   ├── supabase.js     # Supabase client (graceful fallback)
+│   │   ├── premium.js      # Feature gating + pricing
+│   │   └── analytics.js    # Event tracking
+│   ├── hooks/
+│   │   ├── useAuth.jsx     # Auth context/provider
+│   │   ├── useProbes.js    # Probe CRUD
+│   │   └── useEvents.js    # Event CRUD
+│   └── components/auth/
+│       ├── AuthModal.jsx   # Sign in/up modal
+│       ├── AuthCallback.jsx # OAuth redirect handler
+│       └── PremiumModal.jsx # Premium upgrade modal
+├── api/
+│   ├── create-checkout-session.js  # Stripe Checkout
+│   ├── create-portal-session.js    # Stripe Customer Portal
+│   └── stripe-webhook.js          # Stripe event handler
+├── supabase/migrations/
+│   └── 001_initial_schema.sql     # Database schema + RLS
 ├── public/
-│   ├── favicon.svg         # Compass sigil favicon
+│   ├── favicon.svg         # Compass needle favicon
 │   ├── og-image.svg        # Open Graph image
 │   ├── icon-192.png        # PWA icon
 │   └── icon-512.png        # PWA icon (large)
-├── vite.config.js          # Vite + PWA config
-├── .github/workflows/
-│   └── deploy.yml          # GitHub Pages deploy
+├── vercel.json             # Vercel rewrites + headers
+├── vite.config.js          # Vite + PWA + obfuscation
+├── .env.example            # Environment variable template
 └── README.md
 ```
 
 ---
 
-## PWA
-
-The app is installable as a PWA. The service worker (via Workbox) caches all assets and Google Fonts for offline use.
-
-## Shareable Probe Cards
-
-When you fire a probe, you can share it as a 1080x1080 PNG card with the compass bearing, action, entropy stats, and intention text. Uses the Web Share API on mobile, falls back to PNG download on desktop.
-
----
-
-## Analytics
-
-No analytics are included by default. To add privacy-respecting analytics, add one of the following to `app/index.html` before `</head>`:
-
-**Plausible** (example — replace with your own domain):
-```html
-<script defer data-domain="your-actual-domain.com" src="https://plausible.io/js/script.js"></script>
-```
-
-**Umami** (example — replace with your own instance URL and website ID):
-```html
-<script defer src="https://your-umami-instance.com/script.js" data-website-id="your-website-id"></script>
-```
-
-Both are privacy-first, cookie-free, and GDPR-compliant.
-
----
-
 ## Tech Stack
 
-- **Vite** + **React 18**
-- **vite-plugin-pwa** (Workbox service worker)
-- Canvas API for entropy visualization + probe cards
-- Web Crypto API for entropy sampling
-- Web Share API for probe card sharing
-- localStorage for persistence
+- **Vite** + **React 18** — Multi-page app (landing + SPA)
+- **Supabase** — Auth, PostgreSQL database, Row-Level Security
+- **Stripe** — Subscriptions ($1.99/mo, $11.99/yr)
+- **Vercel** — Hosting, serverless API functions
+- **vite-plugin-pwa** (Workbox) — Offline-capable PWA
+- **rollup-obfuscator** — Production JS obfuscation
+- Canvas API — Entropy visualization + shareable probe cards
+- Web Crypto API — Entropy sampling
+- Web Share API — Probe card sharing
+
+---
+
+## Premium
+
+Free tier includes 1 probe per day and 7-day event history. Premium unlocks:
+- Unlimited daily probes
+- Full event history
+- Deep entropy analysis
+- Advanced pattern detection
+- Data export (JSON/CSV)
+- Cloud sync across devices
+
+---
+
+## PWA
+
+The app is installable as a PWA. The service worker caches all assets and Google Fonts for offline use. Works without Supabase — data persists in localStorage.
 
 ---
 
