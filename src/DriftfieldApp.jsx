@@ -447,7 +447,7 @@ function EntropyVis({ data, polarity }) {
     const w = canvas.width = canvas.offsetWidth;
     const h = canvas.height = 80;
     ctx.clearRect(0, 0, w, h);
-    const color = polarity === "positive" ? [0, 255, 140] : [255, 60, 80];
+    const color = polarity === "positive" ? [0, 229, 200] : [255, 60, 80];
     const barW = w / data.length;
     for (let i = 0; i < data.length; i++) {
       const val = data[i] / 255;
@@ -482,7 +482,7 @@ function CompassRose({ bearing, magnitude, polarity }) {
     canvas.width = size;
     canvas.height = size;
     const cx = size / 2, cy = size / 2, r = size * 0.38;
-    const color = polarity === "positive" ? [0, 255, 140] : [255, 60, 80];
+    const color = polarity === "positive" ? [0, 229, 200] : [255, 60, 80];
 
     let animId;
     const draw = () => {
@@ -636,12 +636,12 @@ function Toggle({ checked, onChange, label }) {
     <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 11, color: "#999" }}>
       <div onClick={() => onChange(!checked)} style={{
         width: 34, height: 18, borderRadius: 9, flexShrink: 0,
-        background: checked ? "#00ff8c25" : "#1a1a2e", border: `1px solid ${checked ? "#00ff8c50" : "#2a2a45"}`,
+        background: checked ? "#00e5c825" : "#1a1a2e", border: `1px solid ${checked ? "#00e5c850" : "#2a2a45"}`,
         position: "relative", transition: "all 0.2s", cursor: "pointer",
       }}>
         <div style={{
           width: 12, height: 12, borderRadius: 6,
-          background: checked ? "#00ff8c" : "#444", position: "absolute", top: 2,
+          background: checked ? "#00e5c8" : "#444", position: "absolute", top: 2,
           left: checked ? 18 : 3, transition: "all 0.2s",
         }} />
       </div>
@@ -669,7 +669,7 @@ function Section({ title, children, style: s }) {
   );
 }
 
-function Btn({ children, onClick, color = "#00ff8c", full, small, dim }) {
+function Btn({ children, onClick, color = "#00e5c8", full, small, dim }) {
   return (
     <button onClick={onClick} style={{
       width: full ? "100%" : "auto",
@@ -810,8 +810,8 @@ export default function DriftfieldApp() {
   };
 
   const patterns = analyzePatterns(events);
-  const pc = (field?.polarity === "positive" || !field) ? "#00ff8c" : "#ff3c50";
-  const pColors = { positive: "#00ff8c", negative: "#ff3c50", neutral: "#7a7aff" };
+  const pc = (field?.polarity === "positive" || !field) ? "#00e5c8" : "#ff3c50";
+  const pColors = { positive: "#00e5c8", negative: "#ff3c50", neutral: "#7a7aff" };
 
   const navItems = [
     { id: "field", label: "SCAN", icon: "◉" },
@@ -829,12 +829,21 @@ export default function DriftfieldApp() {
 
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 7, letterSpacing: 6, color: "#2a2a40" }}>SERENDIPITY ENGINE</div>
-          <h1 style={{ fontSize: 16, fontWeight: 300, letterSpacing: 3, color: "#d0d0e8", margin: "2px 0" }}>
-            DRIFTFIELD
-          </h1>
-          <div style={{ fontSize: 7, color: "#3a3a50", letterSpacing: 2 }}>
-            ENTROPY × CYCLE × ATTENTION × ACTION
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 2 }}>
+            <svg width="24" height="24" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="120" cy="120" r="90" fill="none" stroke="#1a3a4a" strokeWidth="2" strokeDasharray="4 10"/>
+              <circle cx="120" cy="120" r="55" fill="none" stroke="#0d2a35" strokeWidth="2"/>
+              <path d="M120 120 L120 50" stroke="#00e5c8" strokeWidth="6" strokeLinecap="round"/>
+              <path d="M120 50 Q132 68 126 80" stroke="#00e5c8" strokeWidth="4.5" fill="none" strokeLinecap="round"/>
+              <circle cx="120" cy="120" r="8" fill="#00e5c8" opacity="0.5"/>
+              <circle cx="120" cy="120" r="5" fill="#00e5c8"/>
+            </svg>
+            <h1 style={{ fontSize: 16, fontWeight: 300, letterSpacing: 4, color: "#d0d0e8", margin: 0 }}>
+              DRIFTFIELD
+            </h1>
+          </div>
+          <div style={{ fontSize: 7, color: "#00e5c8", letterSpacing: 3, opacity: 0.4 }}>
+            ENTROPY-DRIVEN SERENDIPITY
           </div>
           {(() => {
             const allDates = new Set();
@@ -1099,7 +1108,7 @@ export default function DriftfieldApp() {
                       <span style={{ color: "#888" }}>{v.icon} {label}</span>
                       <span style={{ color: "#555" }}>
                         {v.followed}/{v.total}
-                        {v.outcomes.positive > 0 && <span style={{ color: "#00ff8c", marginLeft: 6 }}>+{v.outcomes.positive}</span>}
+                        {v.outcomes.positive > 0 && <span style={{ color: "#00e5c8", marginLeft: 6 }}>+{v.outcomes.positive}</span>}
                         {v.outcomes.negative > 0 && <span style={{ color: "#ff3c50", marginLeft: 4 }}>-{v.outcomes.negative}</span>}
                       </span>
                     </div>

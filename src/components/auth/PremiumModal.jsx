@@ -97,7 +97,7 @@ export function PremiumModal({ isOpen, onClose, triggerLocation = 'unknown' }) {
       gap: '8px',
     },
     featureIcon: {
-      color: '#44ff88',
+      color: '#00e5c8',
       fontSize: '12px',
     },
     planToggle: {
@@ -130,7 +130,7 @@ export function PremiumModal({ isOpen, onClose, triggerLocation = 'unknown' }) {
     savingsBadge: {
       display: 'inline-block',
       background: 'rgba(68, 255, 136, 0.15)',
-      color: '#44ff88',
+      color: '#00e5c8',
       fontSize: '10px',
       padding: '2px 6px',
       borderRadius: '4px',

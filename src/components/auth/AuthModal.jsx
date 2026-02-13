@@ -143,7 +143,7 @@ export function AuthModal({ isOpen, onClose, initialMode = MODES.SIGN_IN }) {
       marginTop: '8px',
     },
     message: {
-      color: '#44ff88',
+      color: '#00e5c8',
       fontSize: '12px',
       fontFamily: 'monospace',
       marginTop: '8px',
