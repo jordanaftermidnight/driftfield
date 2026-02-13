@@ -1566,6 +1566,10 @@ export default function DriftfieldApp() {
                 <Btn onClick={() => { setBirthDate(null); save("df_birth", null); }} dim small>Clear Birth</Btn>
               </div>
             </Section>
+
+            <div style={{ textAlign: "center", padding: "12px 0 4px", fontSize: 9, color: "#2a2a40" }}>
+              <a href="mailto:jordanaftermidnight@gmail.com" style={{ color: "#3a3a55", textDecoration: "none", letterSpacing: 1 }}>CONTACT</a>
+            </div>
           </>
         )}
       </div>
