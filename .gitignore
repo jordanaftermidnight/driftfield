@@ -48,3 +48,7 @@ driftfield-engine-FINAL/
 driftfield-engine-FINAL.tar.gz
 scripts/
 .vercel
+
+# Internal planning docs (not for public distribution)
+ARCANA_IMPLEMENTATION_PLAN.md
+src/arcana/vision/training-spec.ts

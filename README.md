@@ -2,26 +2,63 @@
 
 > An oracle in your pocket. Entropy speaks — you listen.
 
-An entropy-driven serendipity engine that detects probability currents, amplifies your luck surface area, and tells you where chance is flowing. Built on real math and behavioral science research.
+Driftfield is an entropy-driven serendipity engine that detects probability currents, amplifies your luck surface area, and tells you where chance is flowing. It sits at the intersection of cryptography and divination — using the same randomness primitives that secure financial systems to power an oracle that responds to your questions, intentions, and choices.
 
 **[Live](https://driftfield.vercel.app/) | [Open Engine](https://driftfield.vercel.app/app/)**
 
 ---
 
-## What It Does
+## The Idea
 
-Driftfield has three instruments:
+Most randomness apps generate noise. Driftfield listens to it.
+
+The engine continuously samples cryptographic randomness (CSPRNG) and runs statistical analysis against it — the same tests used to validate hardware random number generators. When patterns deviate from perfect randomness, that deviation becomes signal. Layer in biorhythm cycles, lunar phase, temporal gates, and a personal probability field calibrated to your behavior — and you get something that feels less like a random number generator and more like a compass that points toward the improbable.
+
+Built on research by Wiseman (*The Luck Factor*), Shannon (*A Mathematical Theory of Communication*), Jung (*Synchronicity*), Granovetter (*The Strength of Weak Ties*), Busch (*The Serendipity Mindset*), and Taleb (*Antifragile*).
+
+---
+
+## Three Instruments
 
 ### SCAN
-The entropy engine samples cryptographic randomness and runs statistical analysis (Shannon entropy, chi-squared, serial correlation, runs test, Monte Carlo estimation). Deviations from perfect randomness become signal. Fire probes with an intention — or compare two choices and let the field weigh in. Biorhythm cycles, lunar phase, and temporal gates overlay your personal probability field. Log synchronicities, track patterns, and measure your daily surface area.
+The field dashboard. Fire probes with an intention, compare two choices and let the field weigh in, log synchronicities as they happen, and track how your probability surface shifts over time. Entropy compass, field strength, signal analysis, weekly drift reports.
 
 ### ARCANA
-A full tarot reading engine powered by the entropy field. 78 RWS cards, 12 spread templates, generative procedural card backs, and narrative that responds to your question, the cards drawn, and the current field state. Not random — responsive.
+A tarot reading engine wired directly into the entropy field. 78 Rider-Waite-Smith cards, 12 spread templates, procedurally generated card backs, and narrative that responds to your question, the cards drawn, and the current state of the field. The same cryptographic entropy that powers the scanner also shuffles the deck — every card drawn is a measurement of the field at that moment. Not random. Responsive.
 
 ### SETUP
-Configure your birth date, time, and location for personalized biorhythm and birth chart overlays. Manage your account, subscription, and data exports.
+Birth date, time, and location for personalized biorhythm and natal chart overlays. Account, subscription, theme, and data management.
 
-Based on research by Wiseman (2003), Granovetter (1973), Busch (2020), Shannon (1948), Jung (1952), and Taleb (2012).
+---
+
+## How Cryptography Meets Divination
+
+Traditional tarot relies on physical shuffling — a chaotic process that's theoretically deterministic but practically unpredictable. Driftfield replaces that with cryptographic randomness from the Web Crypto API, then treats the entropy stream the way a signals engineer treats radio noise: by measuring its statistical properties in real time.
+
+The arcana engine doesn't just pick random cards. It draws from a CSPRNG, runs the output through entropy analysis (measuring how "surprising" the randomness is at the moment of your question), and feeds that analysis into the narrative. A reading drawn during a high-entropy anomaly reads differently than one drawn during statistical calm. The field state — your probe history, synchronicity log, biorhythm phase, lunar position — becomes context that shapes how the cards speak.
+
+The result is an oracle that's grounded in real mathematics but doesn't feel clinical. The cryptographic layer provides genuine unpredictability. The esoteric layer provides meaning. Neither works without the other.
+
+---
+
+## Tech
+
+- **React** + **Vite** — Multi-page app (landing page + SPA)
+- **TypeScript** — Arcana engine (entropy, deck, spreads, narrative pipeline)
+- **Supabase** — Auth, PostgreSQL, Row-Level Security
+- **Stripe** — Subscriptions
+- **Vercel** — Hosting + serverless API
+- **PWA** — Installable, offline-capable (Workbox)
+- **Canvas API** — Entropy visualization, compass rose, generative card backs
+- **Web Crypto API** — CSPRNG entropy sampling
+
+---
+
+## Premium
+
+Free tier: 1 probe and 1 reading per day, 6 spreads, practical tone.
+
+Premium unlocks unlimited probes and readings, all 12 spread templates, all narrative tones (mystical, analytical, poetic, direct), extended domain focus, full event history, deep entropy analysis, pattern detection, data export, and cloud sync.
 
 ---
 
@@ -33,142 +70,13 @@ cp .env.example .env.local   # fill in your keys
 npm run dev
 ```
 
-The dev server serves:
-- Landing page at `http://localhost:5173/`
-- App at `http://localhost:5173/app/`
+- Landing page: `http://localhost:5173/`
+- App: `http://localhost:5173/app/`
 
-### Build
-
-```bash
-npm run build
-npm run preview
-```
-
-### Deploy
-
-Push to `main` — Vercel auto-deploys via GitHub integration.
-
----
-
-## Project Structure
-
-```
-driftfield/
-├── index.html              # Landing page (light/dark mode)
-├── app/
-│   └── index.html          # React app entry point
-├── src/
-│   ├── main.jsx            # React mount + routing
-│   ├── DriftfieldApp.jsx   # Main component (3 tabs: Scan, Arcana, Setup)
-│   ├── theme.css           # CSS custom properties (light/dark)
-│   ├── probeCard.js        # Shareable probe/score card generator
-│   ├── lib/
-│   │   ├── supabase.js     # Supabase client (graceful fallback)
-│   │   ├── premium.js      # Feature gating + pricing
-│   │   ├── entropy.js      # Entropy analysis utilities
-│   │   ├── astro.js        # Birth chart calculations
-│   │   └── analytics.js    # Event tracking
-│   ├── hooks/
-│   │   ├── useAuth.jsx     # Auth context/provider
-│   │   ├── useTheme.js     # Light/dark mode toggle
-│   │   ├── useReading.js   # Arcana reading state machine
-│   │   ├── useCardBack.js  # Generative card back renderer
-│   │   ├── useProbes.js    # Probe CRUD (Supabase)
-│   │   └── useEvents.js    # Event CRUD (Supabase)
-│   ├── components/
-│   │   ├── ArcanaTab.jsx       # Tarot reading interface
-│   │   ├── CompassRose.jsx     # Animated entropy compass
-│   │   ├── GenerativeCardBack.jsx  # Procedural card back canvas
-│   │   └── auth/
-│   │       ├── AuthModal.jsx   # Sign in/up modal
-│   │       ├── AuthCallback.jsx # OAuth redirect handler
-│   │       └── PremiumModal.jsx # Premium upgrade modal
-│   └── arcana/
-│       ├── deck/rws.ts         # 78-card RWS deck definition
-│       ├── entropy/             # CSPRNG, shuffle, statistical tests
-│       ├── narrative/voice.ts   # Reading narrative templates
-│       ├── spread/templates.ts  # 12 spread definitions
-│       ├── knowledge/           # Extended card meanings + resolver
-│       ├── pipeline/            # Reading orchestrator
-│       └── types/               # TypeScript interfaces
-├── api/
-│   ├── create-checkout-session.js  # Stripe Checkout
-│   ├── create-portal-session.js    # Stripe Customer Portal
-│   ├── stripe-webhook.js          # Stripe event handler
-│   ├── reading-narrative.js       # Server-side narrative generation
-│   └── generate-card-back.js     # Card back image generation
-├── supabase/migrations/
-│   ├── 001_initial_schema.sql     # Core schema + RLS
-│   ├── 002_arcana_engine_v2.sql   # Arcana tables
-│   └── 003_card_back_storage.sql  # Card back storage
-├── public/
-│   ├── cards/              # 78 tarot card images (card/detail/thumb)
-│   ├── favicon.svg         # Compass needle favicon
-│   ├── og-image.svg        # Open Graph image
-│   ├── icon-192.png        # PWA icon
-│   └── icon-512.png        # PWA icon (large)
-├── vercel.json             # Vercel rewrites + headers
-├── vite.config.js          # Vite + PWA + obfuscation
-├── tsconfig.json           # TypeScript config (arcana engine)
-├── .env.example            # Environment variable template
-└── README.md
-```
-
----
-
-## Tech Stack
-
-- **Vite** + **React 18** — Multi-page app (landing + SPA)
-- **TypeScript** — Arcana engine (entropy, deck, spreads, narrative)
-- **Supabase** — Auth, PostgreSQL database, Row-Level Security
-- **Stripe** — Subscriptions ($1.99/mo, $11.99/yr)
-- **Vercel** — Hosting, serverless API functions
-- **vite-plugin-pwa** (Workbox) — Offline-capable PWA
-- **rollup-obfuscator** — Production JS obfuscation
-- Canvas API — Entropy visualization, compass rose, generative card backs
-- Web Crypto API — Entropy sampling (CSPRNG)
-- Web Share API — Probe card sharing
-
----
-
-## Premium
-
-Free tier includes 1 probe and 1 reading per day, 6 spreads, practical tone only. Premium unlocks:
-- Unlimited daily probes and readings
-- All 12 spread templates
-- All narrative tones (mystical, analytical, poetic, direct)
-- Up to 8 domain focus tags
-- Full event history
-- Deep entropy analysis
-- Advanced pattern detection
-- Data export (JSON/CSV)
-- Cloud sync across devices
-
----
-
-## PWA
-
-The app is installable as a PWA. The service worker caches all assets and Google Fonts for offline use. Works without Supabase — data persists in localStorage.
-
----
-
-## Themes
-
-Light and dark mode with full CSS custom property system. Theme persists across sessions via localStorage. Landing page and app share the same theme key (`df_theme`).
-
----
-
-## Research References
-
-- Wiseman, R. (2003). *The Luck Factor*
-- Granovetter, M. (1973). *The Strength of Weak Ties*
-- Busch, C. (2020). *The Serendipity Mindset*
-- Shannon, C. (1948). *A Mathematical Theory of Communication*
-- Jung, C.G. (1952). *Synchronicity: An Acausal Connecting Principle*
-- Taleb, N.N. (2012). *Antifragile*
+Push to `main` — Vercel auto-deploys.
 
 ---
 
 ## License
 
-All rights reserved. See [LICENSE](LICENSE) for details.
+Proprietary. Source is visible for transparency — not licensed for use, modification, or redistribution. See [LICENSE](LICENSE).
