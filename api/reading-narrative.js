@@ -59,7 +59,9 @@ export default async function handler(req, res) {
       .eq('id', user.id)
       .single();
 
-    if (profile?.subscription_tier !== 'premium' || profile?.subscription_status !== 'active') {
+    const isActivePremium = profile?.subscription_tier === 'premium' &&
+      (profile?.subscription_status === 'active' || profile?.subscription_status === 'past_due');
+    if (!isActivePremium) {
       return res.status(403).json({ error: 'Premium subscription required' });
     }
 

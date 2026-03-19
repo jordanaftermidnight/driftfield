@@ -520,6 +520,38 @@ export default function DriftfieldApp() {
   // Analytics
   useEffect(() => { trackAppOpen(); }, []);
 
+  // Payment return — detect ?payment=success and refresh profile
+  const [paymentStatus, setPaymentStatus] = useState(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get("payment");
+    if (!payment) return;
+    // Clean URL without reload
+    window.history.replaceState({}, "", window.location.pathname);
+    if (payment === "success") {
+      setPaymentStatus("success");
+      // Poll profile until premium or timeout (webhook may be delayed)
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        const { refreshProfile } = await import("./hooks/useAuth");
+        // Use the auth context's refresh — but since we're in the component, use the hook value
+        if (session?.user?.id && supabaseConfigured) {
+          const { data } = await (await import("./lib/supabase")).supabase
+            ?.from("profiles").select("subscription_tier, subscription_status").eq("id", session.user.id).single() || {};
+          if (data?.subscription_tier === "premium" && data?.subscription_status === "active") {
+            clearInterval(poll);
+            window.location.reload(); // Clean reload to pick up premium state everywhere
+          }
+        }
+        if (attempts >= 10) clearInterval(poll); // Stop after ~30s
+      }, 3000);
+      return () => clearInterval(poll);
+    } else if (payment === "cancelled") {
+      setPaymentStatus("cancelled");
+    }
+  }, [session, supabaseConfigured]);
+
   // Scan
   const doScan = useCallback(() => {
     const e = fullEntropyAnalysis(2048);
@@ -677,6 +709,20 @@ export default function DriftfieldApp() {
   return (
     <div data-theme={theme} style={{ background: "var(--df-bg)", minHeight: "100vh", color: "var(--df-text)", fontFamily: "'JetBrains Mono','Fira Code','Courier New',monospace", transition: "background 0.3s, color 0.3s" }}>
       <div style={{ maxWidth: 600, margin: "0 auto", padding: "12px 14px 80px" }}>
+
+        {/* Payment status toast */}
+        {paymentStatus === "success" && (
+          <div style={{ padding: "12px 16px", marginBottom: 12, background: "rgba(0, 229, 200, 0.1)", border: "1px solid rgba(0, 229, 200, 0.3)", borderRadius: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: "#00e5c8", fontFamily: "inherit" }}>Payment successful — upgrading your account...</span>
+            <button onClick={() => setPaymentStatus(null)} style={{ background: "none", border: "none", color: "#00e5c8", cursor: "pointer", fontSize: 14 }}>×</button>
+          </div>
+        )}
+        {paymentStatus === "cancelled" && (
+          <div style={{ padding: "12px 16px", marginBottom: 12, background: "rgba(255, 200, 0, 0.08)", border: "1px solid rgba(255, 200, 0, 0.2)", borderRadius: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: "var(--df-text-muted)", fontFamily: "inherit" }}>Payment cancelled. You can upgrade anytime from Setup.</span>
+            <button onClick={() => setPaymentStatus(null)} style={{ background: "none", border: "none", color: "var(--df-text-dim)", cursor: "pointer", fontSize: 14 }}>×</button>
+          </div>
+        )}
 
         {/* Header */}
         <div style={{ marginBottom: 16 }}>

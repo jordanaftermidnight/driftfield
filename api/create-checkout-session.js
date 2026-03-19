@@ -46,10 +46,21 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid price' });
     }
 
+    // Reuse existing Stripe customer if one exists (prevents duplicates)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('stripe_customer_id')
+      .eq('id', user.id)
+      .single();
+
+    const customerParams = profile?.stripe_customer_id
+      ? { customer: profile.stripe_customer_id }
+      : { customer_email: user.email };
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
-      customer_email: user.email,
+      ...customerParams,
       line_items: [
         {
           price: priceId,

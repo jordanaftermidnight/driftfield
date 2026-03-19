@@ -146,7 +146,7 @@ export function AuthProvider({ children }) {
     isAuthenticated: !!session,
     isPremium:
       profile?.subscription_tier === 'premium' &&
-      profile?.subscription_status === 'active',
+      (profile?.subscription_status === 'active' || profile?.subscription_status === 'past_due'),
     supabaseConfigured,
     // Methods
     signUp,
