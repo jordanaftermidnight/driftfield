@@ -50,6 +50,6 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error('Cleanup cron error:', error);
-    return res.status(500).json({ error: 'Cleanup failed', details: error.message });
+    return res.status(500).json({ error: 'Cleanup failed' });
   }
 }

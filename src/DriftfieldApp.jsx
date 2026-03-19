@@ -437,7 +437,7 @@ function Btn({ children, onClick, color, colorHex = "#00e5c8", full, small, dim 
 // ═══════════════════════════════════════════
 
 export default function DriftfieldApp() {
-  const { isAuthenticated, user, profile, isPremium, signOut, supabaseConfigured } = useAuth();
+  const { isAuthenticated, user, session, profile, isPremium, signOut, supabaseConfigured } = useAuth();
   const { theme, toggleTheme, isDark } = useTheme();
   const [showAuth, setShowAuth] = useState(false);
   const [showPremium, setShowPremium] = useState(false);
@@ -1502,8 +1502,10 @@ export default function DriftfieldApp() {
                     <Btn onClick={async () => {
                       const res = await fetch('/api/create-portal-session', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ customerId: profile?.stripe_customer_id }),
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${session.access_token}`,
+                        },
                       });
                       const data = await res.json();
                       if (data.url) window.location.href = data.url;

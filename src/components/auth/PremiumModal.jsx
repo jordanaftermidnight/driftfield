@@ -10,7 +10,7 @@ import { PRICING } from '../../lib/premium';
 import { trackPremiumCTA } from '../../lib/analytics';
 
 export function PremiumModal({ isOpen, onClose, triggerLocation = 'unknown' }) {
-  const { user, isPremium } = useAuth();
+  const { user, session, isPremium } = useAuth();
   const [selectedPlan, setSelectedPlan] = useState('yearly');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -27,11 +27,12 @@ export function PremiumModal({ isOpen, onClose, triggerLocation = 'unknown' }) {
     try {
       const response = await fetch('/api/create-checkout-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           priceId: PRICING[selectedPlan].stripePriceId,
-          userId: user.id,
-          email: user.email,
         }),
       });
 
