@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — Driftfield</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a0a; color: #ccc; font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace; line-height: 1.8; padding: 40px 20px 80px; }
+    .container { max-width: 640px; margin: 0 auto; }
+    h1 { color: #C9A84C; font-size: 16px; letter-spacing: 3px; margin-bottom: 8px; }
+    h2 { color: #fff; font-size: 13px; letter-spacing: 2px; margin-top: 32px; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; }
+    p, li { font-size: 12px; color: #aaa; margin-bottom: 10px; }
+    ul { padding-left: 20px; margin-bottom: 12px; }
+    li { margin-bottom: 6px; }
+    a { color: #C9A84C; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .date { font-size: 11px; color: #666; margin-bottom: 24px; }
+    .back { display: inline-block; margin-bottom: 24px; font-size: 11px; color: #666; letter-spacing: 1px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="back">&larr; BACK TO DRIFTFIELD</a>
+
+    <h1>PRIVACY POLICY</h1>
+    <p class="date">Last updated: 19 March 2026</p>
+
+    <p>Driftfield ("we", "the app") is operated by jordanaftermidnight. This policy explains what data we collect, how we use it, and your rights.</p>
+
+    <h2>1. DATA WE COLLECT</h2>
+
+    <p><strong>Account data</strong> — When you create an account: email address, authentication method (email/password, magic link, or Google OAuth). We do not store your password directly; authentication is handled by Supabase Auth.</p>
+
+    <p><strong>Profile data</strong> — Birth date, time, and location (if you choose to provide them). These are used to calculate biorhythm cycles and natal chart overlays. Providing this information is optional.</p>
+
+    <p><strong>App data</strong> — Probes (intentions and entropy results), synchronicity events (text, polarity, category), tarot readings (spread, cards drawn, narrative text), journal entries, and daily surface area check-ins. This is the content you create within the app.</p>
+
+    <p><strong>Usage analytics</strong> — We track basic usage events: app opens (with viewport size and referrer), tab views, probes fired, events logged, readings started/completed/saved, premium upgrade clicks, and PWA installs. Analytics are first-party only — we do not use Google Analytics, tracking pixels, or any third-party analytics service. All analytics are tied to your authenticated account and are not collected for unauthenticated users.</p>
+
+    <p><strong>Payment data</strong> — Subscription payments are processed by <a href="https://stripe.com/privacy">Stripe</a>. We do not store your card number, CVV, or billing address. We store your Stripe customer ID and subscription status to manage your account tier.</p>
+
+    <h2>2. HOW WE USE YOUR DATA</h2>
+    <ul>
+      <li>To provide and operate the app's features (entropy analysis, readings, probes, pattern detection)</li>
+      <li>To personalise your experience (biorhythm cycles, natal chart overlays based on birth data)</li>
+      <li>To manage your subscription and premium feature access</li>
+      <li>To understand how the app is used and improve it (aggregated usage analytics)</li>
+      <li>To generate AI-powered reading narratives (premium feature — your reading context is sent to Anthropic's API for narrative generation; see section 5)</li>
+    </ul>
+
+    <h2>3. DATA STORAGE AND SECURITY</h2>
+
+    <p>Your data is stored in <a href="https://supabase.com">Supabase</a>, hosted on servers in the <strong>European Union (Ireland)</strong>. All data is protected by Row-Level Security (RLS) — you can only access your own data. Server-side operations (webhook processing, narrative generation) use a restricted service role that is never exposed to the client.</p>
+
+    <p>All connections use HTTPS/TLS encryption in transit. The app enforces Content Security Policy, X-Frame-Options, and other security headers.</p>
+
+    <p>Without an account, all data stays on your device in local storage and is never transmitted to any server.</p>
+
+    <h2>4. DATA RETENTION</h2>
+    <ul>
+      <li><strong>Free tier</strong> — Readings are retained for 30 days. Journal entries are retained for 90 days (unless pinned). Dismissed patterns are retained for 30 days.</li>
+      <li><strong>Premium tier</strong> — All data is retained for the duration of your subscription.</li>
+      <li><strong>Account deletion</strong> — If you delete your account, all associated data is permanently removed (cascading delete).</li>
+    </ul>
+    <p>Automated cleanup runs daily via a scheduled task.</p>
+
+    <h2>5. THIRD-PARTY SERVICES</h2>
+    <ul>
+      <li><strong>Supabase</strong> (EU, Ireland) — Authentication, database, file storage. <a href="https://supabase.com/privacy">Privacy policy</a>.</li>
+      <li><strong>Stripe</strong> (US) — Payment processing. Your payment details are handled directly by Stripe and never pass through our servers. <a href="https://stripe.com/privacy">Privacy policy</a>.</li>
+      <li><strong>Anthropic</strong> (US) — Premium reading narratives are generated via the Claude API. Your reading context (cards drawn, spread, question domain) is sent to Anthropic for narrative generation. Anthropic does not use API inputs for training. <a href="https://www.anthropic.com/privacy">Privacy policy</a>.</li>
+      <li><strong>Google (Gemini)</strong> (US) — Premium generative card backs are created via the Gemini Imagen API. A visual prompt (not personal data) is sent. <a href="https://policies.google.com/privacy">Privacy policy</a>.</li>
+      <li><strong>Vercel</strong> (US) — Hosting and serverless function execution. <a href="https://vercel.com/legal/privacy-policy">Privacy policy</a>.</li>
+    </ul>
+    <p>We do not sell, share, or provide your personal data to any other third party.</p>
+
+    <h2>6. AI-GENERATED CONTENT</h2>
+    <p>Premium tarot reading narratives are generated by an AI language model (Claude by Anthropic). The input sent to the model includes your reading context: cards drawn, their positions, spread type, question domain, and the current entropy field state. It does not include your name, email, birth data, or any personally identifiable information. Anthropic's API usage policy states that API inputs are not used for model training.</p>
+
+    <h2>7. COOKIES AND LOCAL STORAGE</h2>
+    <p>Driftfield does not use cookies. We use browser local storage to persist your theme preference, offline data (probes, events, settings), and session tokens. No tracking cookies or third-party cookies are set.</p>
+
+    <h2>8. YOUR RIGHTS</h2>
+    <p>You have the right to:</p>
+    <ul>
+      <li><strong>Access</strong> your data — all your data is visible within the app</li>
+      <li><strong>Export</strong> your data — available via the data export feature (premium)</li>
+      <li><strong>Delete</strong> your data — you can clear individual data categories in Setup, or delete your entire account</li>
+      <li><strong>Withdraw consent</strong> — you can stop using the app at any time; unauthenticated use stores nothing server-side</li>
+    </ul>
+    <p>If you are in the EU/EEA, you have additional rights under GDPR including the right to rectification, restriction of processing, and lodging a complaint with a supervisory authority.</p>
+
+    <h2>9. CHILDREN</h2>
+    <p>Driftfield is not directed at children under 16. We do not knowingly collect personal data from children. If you believe a child has provided us with personal data, please contact us and we will delete it.</p>
+
+    <h2>10. CHANGES TO THIS POLICY</h2>
+    <p>We may update this policy from time to time. Changes will be posted on this page with an updated date. Continued use of the app after changes constitutes acceptance.</p>
+
+    <h2>11. CONTACT</h2>
+    <p>For privacy questions, data requests, or concerns:<br>
+    <a href="mailto:jordanaftermidnight@gmail.com">jordanaftermidnight@gmail.com</a></p>
+
+    <h2>12. AI TRAINING OPT-OUT</h2>
+    <p>Driftfield's robots.txt blocks all known AI training crawlers (GPTBot, CCBot, Google-Extended, ClaudeBot, Bytespider, FacebookBot, ChatGPT-User) from scraping the hosted application. Your data within the app is additionally protected by authentication — it is not accessible to web crawlers.</p>
+
+  </div>
+</body>
+</html>

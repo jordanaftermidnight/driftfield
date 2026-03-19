@@ -1578,6 +1578,8 @@ export default function DriftfieldApp() {
             <div style={{ textAlign: "center", padding: "16px 0 4px", fontSize: 9, color: "var(--df-text-ghost)" }}>
               <a href="mailto:jordanaftermidnight@gmail.com" style={{ color: "var(--df-text-dim)", textDecoration: "none", letterSpacing: 1 }}>CONTACT</a>
               <span style={{ margin: "0 8px", opacity: 0.3 }}>{"\u00B7"}</span>
+              <a href="/privacy.html" target="_blank" rel="noopener" style={{ color: "var(--df-text-dim)", textDecoration: "none", letterSpacing: 1 }}>PRIVACY</a>
+              <span style={{ margin: "0 8px", opacity: 0.3 }}>{"\u00B7"}</span>
               <span style={{ letterSpacing: 1, fontSize: 9 }}>v2.0</span>
             </div>
           </>
