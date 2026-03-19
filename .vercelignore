@@ -1,0 +1,10 @@
+node_modules
+.git
+.env*
+.DS_Store
+WS Tarot scans
+WS Tarot scans.zip
+_assets
+driftfield-engine-FINAL
+dist
+*.zip

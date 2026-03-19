@@ -17,15 +17,24 @@ export const LIMITS = {
     probesPerDay: 1,
     eventHistoryDays: 7,
     decisionMaxOptions: 2,
-    entropyAnalysisDepth: 'summary', // 'summary' | 'full'
-    patternDetection: 'basic', // 'basic' | 'full'
-    probeCardStyling: 'default', // 'default' | 'custom'
+    entropyAnalysisDepth: 'summary',
+    patternDetection: 'basic',
+    probeCardStyling: 'default',
     cloudSync: false,
     pushNotifications: false,
     exportData: false,
     continuousScanning: false,
     decisionHistory: false,
     streakDashboard: false,
+    // Arcana features
+    arcanaReadingsPerDay: 1,
+    arcanaHistoryDays: 7,
+    arcanaSpreads: 'free',        // 'free' (6 spreads) | 'all' (10 spreads)
+    arcanaTones: 'practical',     // 'practical' | 'all'
+    arcanaDomainTags: 2,
+    arcanaJournal: false,
+    arcanaPatterns: false,
+    arcanaEntropyExport: false,
   },
   premium: {
     probesPerDay: Infinity,
@@ -40,9 +49,17 @@ export const LIMITS = {
     continuousScanning: true,
     decisionHistory: true,
     streakDashboard: true,
+    // Arcana features
+    arcanaReadingsPerDay: Infinity,
+    arcanaHistoryDays: Infinity,
+    arcanaSpreads: 'all',
+    arcanaTones: 'all',
+    arcanaDomainTags: 8,
+    arcanaJournal: true,
+    arcanaPatterns: true,
+    arcanaEntropyExport: true,
   },
   lifetime: {
-    // Same as premium
     probesPerDay: Infinity,
     eventHistoryDays: Infinity,
     decisionMaxOptions: Infinity,
@@ -55,6 +72,15 @@ export const LIMITS = {
     continuousScanning: true,
     decisionHistory: true,
     streakDashboard: true,
+    // Arcana features
+    arcanaReadingsPerDay: Infinity,
+    arcanaHistoryDays: Infinity,
+    arcanaSpreads: 'all',
+    arcanaTones: 'all',
+    arcanaDomainTags: 8,
+    arcanaJournal: true,
+    arcanaPatterns: true,
+    arcanaEntropyExport: true,
   },
 };
 

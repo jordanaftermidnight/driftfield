@@ -69,4 +69,11 @@ export function trackAppOpen() {
   });
 }
 
+// Arcana-specific event helpers
+export function trackArcanaReading(meta) { trackEvent('arcana.reading.started', meta); }
+export function trackArcanaCompleted(meta) { trackEvent('arcana.reading.completed', meta); }
+export function trackArcanaSaved(meta) { trackEvent('arcana.reading.saved', meta); }
+export function trackArcanaRated(meta) { trackEvent('arcana.reading.rated', meta); }
+export function trackArcanaUpgradePrompt(trigger) { trackEvent('arcana.upgrade.prompted', { trigger }); }
+
 export default { trackEvent, trackTabView, trackPremiumCTA, trackPWAInstall, trackAppOpen };

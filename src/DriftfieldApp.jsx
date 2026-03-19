@@ -1,10 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Component } from "react";
 import { shareProbeCard, shareScoreCard } from "./probeCard.js";
 import { useAuth } from "./hooks/useAuth";
 import { AuthModal } from "./components/auth/AuthModal";
 import { PremiumModal } from "./components/auth/PremiumModal";
 import { canFireProbe, hasFeature } from "./lib/premium";
 import { trackAppOpen, trackTabView } from "./lib/analytics";
+import { fullEntropyAnalysis } from "./lib/entropy";
+import { biorhythm, lunarPhase, temporalGate, zodiacSign, calculateField } from "./lib/astro";
+import { CompassRose } from "./components/CompassRose";
+import { ArcanaTab } from "./components/ArcanaTab";
 
 /*
   DRIFTFIELD — Serendipity Engine
@@ -14,6 +18,27 @@ import { trackAppOpen, trackTabView } from "./lib/analytics";
   2. CYCLE LAYER — Biorhythm, lunar phase, temporal gates.
   3. BEHAVIORAL LAYER — Surface area scoring, synchronicity logging, pattern detection.
 */
+
+// ─── Error Boundary ───
+class ArcanaErrorBoundary extends Component {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(err) { console.error('ArcanaTab crashed:', err); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>
+          <p style={{ fontSize: 18, marginBottom: 12 }}>Something went wrong with the reading engine.</p>
+          <button onClick={() => this.setState({ hasError: false })}
+            style={{ background: 'none', border: '1px solid #C9A84C', color: '#C9A84C', padding: '8px 20px', cursor: 'pointer', fontFamily: 'inherit' }}>
+            TRY AGAIN
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // ─── Storage ───
 function load(key, fallback) {
@@ -26,236 +51,8 @@ function save(key, data) {
   try { localStorage.setItem('df_' + key, JSON.stringify(data)); } catch {}
 }
 
-// ═══════════════════════════════════════════
-// ENTROPY ENGINE
-// ═══════════════════════════════════════════
-
-function sampleEntropy(bytes = 1024) {
-  const arr = new Uint8Array(bytes);
-  crypto.getRandomValues(arr);
-  return arr;
-}
-
-function shannonEntropy(data) {
-  const freq = {};
-  for (const b of data) freq[b] = (freq[b] || 0) + 1;
-  let H = 0;
-  const n = data.length;
-  for (const k in freq) {
-    const p = freq[k] / n;
-    if (p > 0) H -= p * Math.log2(p);
-  }
-  return H; // max 8 for byte data
-}
-
-function runsTest(data) {
-  const median = [...data].sort((a, b) => a - b)[Math.floor(data.length / 2)];
-  let runs = 1;
-  let maxRun = 1;
-  let currentRun = 1;
-  for (let i = 1; i < data.length; i++) {
-    if ((data[i] >= median) === (data[i - 1] >= median)) {
-      currentRun++;
-      maxRun = Math.max(maxRun, currentRun);
-    } else {
-      runs++;
-      currentRun = 1;
-    }
-  }
-  const expected = (data.length + 1) / 2;
-  const deviation = (runs - expected) / expected;
-  return { runs, maxRun, expected, deviation, clusterScore: -deviation };
-}
-
-function chiSquared(data) {
-  const expected = data.length / 256;
-  const freq = new Array(256).fill(0);
-  for (const b of data) freq[b]++;
-  let chi2 = 0;
-  for (let i = 0; i < 256; i++) {
-    chi2 += Math.pow(freq[i] - expected, 2) / expected;
-  }
-  // degrees of freedom = 255, expected chi2 ≈ 255
-  const normalized = (chi2 - 255) / 255;
-  return { chi2, normalized };
-}
-
-function serialCorrelation(data) {
-  let sumXY = 0, sumX = 0, sumY = 0, sumX2 = 0, sumY2 = 0;
-  const n = data.length - 1;
-  for (let i = 0; i < n; i++) {
-    sumXY += data[i] * data[i + 1];
-    sumX += data[i];
-    sumY += data[i + 1];
-    sumX2 += data[i] ** 2;
-    sumY2 += data[i + 1] ** 2;
-  }
-  const num = n * sumXY - sumX * sumY;
-  const den = Math.sqrt((n * sumX2 - sumX ** 2) * (n * sumY2 - sumY ** 2));
-  return den === 0 ? 0 : num / den;
-}
-
-// Monte Carlo Pi estimation — deviation from π indicates entropy anomaly
-function monteCarloDeviation(data) {
-  let inside = 0;
-  const pairs = Math.floor(data.length / 4);
-  for (let i = 0; i < pairs; i++) {
-    const x = ((data[i * 4] << 8) | data[i * 4 + 1]) / 65536;
-    const y = ((data[i * 4 + 2] << 8) | data[i * 4 + 3]) / 65536;
-    if (x * x + y * y <= 1) inside++;
-  }
-  const piEstimate = (4 * inside) / pairs;
-  return { piEstimate, deviation: Math.abs(piEstimate - Math.PI) / Math.PI };
-}
-
-function fullEntropyAnalysis(bytes = 2048) {
-  const data = sampleEntropy(bytes);
-  const shannon = shannonEntropy(data);
-  const runs = runsTest(data);
-  const chi = chiSquared(data);
-  const corr = serialCorrelation(data);
-  const mc = monteCarloDeviation(data);
-
-  // Composite anomaly score: how far from "perfectly random"
-  const entropyDev = Math.abs(8 - shannon) / 8;
-  const anomalyScore = (
-    entropyDev * 0.2 +
-    Math.abs(runs.deviation) * 0.25 +
-    Math.abs(chi.normalized) * 0.2 +
-    Math.abs(corr) * 0.15 +
-    mc.deviation * 0.2
-  );
-
-  // Direction derived from entropy — Randonautica style
-  // Use first 8 bytes to derive angle, magnitude, and action type
-  const angle = ((data[0] << 8) | data[1]) / 65536 * 360;
-  const magnitude = ((data[2] << 8) | data[3]) / 65536;
-  const actionSeed = data[4] % 8;
-  const polaritySeed = data[5];
-
-  // Polarity: entropy-derived but weighted by anomaly
-  const rawPolarity = (polaritySeed / 255) * 2 - 1; // -1 to 1
-  const polarity = rawPolarity + (anomalyScore > 0.1 ? 0.2 : -0.1);
-
-  return {
-    shannon, runs, chi, corr: corr, mc,
-    anomalyScore: Math.min(anomalyScore * 3, 1), // scale up for visibility
-    direction: { angle, magnitude, actionSeed },
-    polarity: polarity > 0 ? "positive" : "negative",
-    polarityRaw: polarity,
-    rawData: data.slice(0, 64), // keep first 64 bytes for visualization
-    timestamp: Date.now(),
-  };
-}
-
-// ═══════════════════════════════════════════
-// ASTRO CALCULATIONS
-// ═══════════════════════════════════════════
-
-function biorhythm(birthDate, targetDate) {
-  const diff = Math.floor((targetDate - birthDate) / 86400000);
-  return {
-    physical: { value: Math.sin((2 * Math.PI * diff) / 23), cycle: 23, label: "Physical" },
-    emotional: { value: Math.sin((2 * Math.PI * diff) / 28), cycle: 28, label: "Emotional" },
-    intellectual: { value: Math.sin((2 * Math.PI * diff) / 33), cycle: 33, label: "Intellectual" },
-    intuitive: { value: Math.sin((2 * Math.PI * diff) / 38), cycle: 38, label: "Intuitive" },
-  };
-}
-
-function lunarPhase(date) {
-  const knownNew = new Date(2000, 0, 6, 18, 14).getTime();
-  const cycle = 29.53058770576;
-  const daysSince = (date.getTime() - knownNew) / 86400000;
-  const phase = ((daysSince % cycle) + cycle) % cycle;
-  const normalized = phase / cycle;
-  const names = ["New Moon", "Waxing Crescent", "First Quarter", "Waxing Gibbous", "Full Moon", "Waning Gibbous", "Last Quarter", "Waning Crescent"];
-  const symbols = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"];
-  const qualities = [
-    "Void potential — set intentions into the dark",
-    "Building momentum — nurture new beginnings",
-    "Tension & decision — commit or release",
-    "Expansion — amplify what's working",
-    "Peak illumination — maximum visibility & manifestation",
-    "Gratitude & sharing — distribute gains",
-    "Release & let go — shed what doesn't serve",
-    "Surrender & rest — prepare for renewal"
-  ];
-  const idx = Math.floor(normalized * 8) % 8;
-  const energy = 0.5 + 0.5 * Math.sin(normalized * Math.PI * 2);
-  return { name: names[idx], symbol: symbols[idx], quality: qualities[idx], energy, normalized, daysInCycle: phase.toFixed(1) };
-}
-
-function temporalGate(date) {
-  const h = date.getHours() + date.getMinutes() / 60;
-  const gates = [
-    { name: "Deep Void", range: [0, 3], energy: 0.6, quality: "Subconscious processing. Dreams seed intention. Entropy is high — random walks in thought may yield breakthroughs." },
-    { name: "Pre-Dawn Liminal", range: [3, 5], energy: 0.8, quality: "The veil is thin. Transition zone between unconscious and conscious. High-signal window for intuitive hits." },
-    { name: "Dawn Gate", range: [5, 7], energy: 0.9, quality: "Maximum potential energy. Intentions set now carry momentum. The field is most receptive." },
-    { name: "Morning Ascent", range: [7, 10], energy: 0.7, quality: "Rising energy. Social encounters gain weight. Good for initiating contact with weak ties." },
-    { name: "Solar Apex", range: [10, 13], energy: 0.5, quality: "Peak visibility. Actions taken now have maximum witnesses. Public sharing is amplified." },
-    { name: "Afternoon Drift", range: [13, 16], energy: 0.4, quality: "Analytical mind softens. Peripheral attention widens naturally. Aimless exploration yields discoveries." },
-    { name: "Twilight Gate", range: [16, 19], energy: 0.85, quality: "Second liminal threshold. Chance encounters peak. Routine deviation is most rewarded." },
-    { name: "Evening Integration", range: [19, 22], energy: 0.6, quality: "Pattern recognition strengthens. Review and log events. Connect today's dots." },
-    { name: "Night Descent", range: [22, 24], energy: 0.7, quality: "Defenses lower. Honest reflection. Set tomorrow's intention before sleep." },
-  ];
-  const gate = gates.find(g => h >= g.range[0] && h < g.range[1]) || gates[0];
-  return { ...gate, hour: h };
-}
-
-function zodiacSign(month, day) {
-  const signs = [
-    { name: "Capricorn", symbol: "♑", start: [1, 1], end: [1, 19], element: "Earth" },
-    { name: "Aquarius", symbol: "♒", start: [1, 20], end: [2, 18], element: "Air" },
-    { name: "Pisces", symbol: "♓", start: [2, 19], end: [3, 20], element: "Water" },
-    { name: "Aries", symbol: "♈", start: [3, 21], end: [4, 19], element: "Fire" },
-    { name: "Taurus", symbol: "♉", start: [4, 20], end: [5, 20], element: "Earth" },
-    { name: "Gemini", symbol: "♊", start: [5, 21], end: [6, 20], element: "Air" },
-    { name: "Cancer", symbol: "♋", start: [6, 21], end: [7, 22], element: "Water" },
-    { name: "Leo", symbol: "♌", start: [7, 23], end: [8, 22], element: "Fire" },
-    { name: "Virgo", symbol: "♍", start: [8, 23], end: [9, 22], element: "Earth" },
-    { name: "Libra", symbol: "♎", start: [9, 23], end: [10, 22], element: "Air" },
-    { name: "Scorpio", symbol: "♏", start: [10, 23], end: [11, 21], element: "Water" },
-    { name: "Sagittarius", symbol: "♐", start: [11, 22], end: [12, 21], element: "Fire" },
-    { name: "Capricorn", symbol: "♑", start: [12, 22], end: [12, 31], element: "Earth" },
-  ];
-  const d = month * 100 + day;
-  return signs.find(s => {
-    const start = s.start[0] * 100 + s.start[1];
-    const end = s.end[0] * 100 + s.end[1];
-    return d >= start && d <= end;
-  }) || signs[0];
-}
-
-// Composite field calculation
-function calculateField(entropy, birth, now) {
-  const bio = birth ? biorhythm(birth, now) : null;
-  const lunar = lunarPhase(now);
-  const temporal = temporalGate(now);
-  const sign = birth ? zodiacSign(birth.getMonth() + 1, birth.getDate()) : null;
-
-  const bioComposite = bio ? (
-    bio.physical.value * 0.2 +
-    bio.emotional.value * 0.3 +
-    bio.intellectual.value * 0.2 +
-    bio.intuitive.value * 0.3
-  ) : 0;
-
-  const lunarMod = (lunar.energy - 0.5) * 0.4;
-  const temporalMod = (temporal.energy - 0.5) * 0.3;
-  const entropyMod = entropy.anomalyScore * (entropy.polarity === "positive" ? 1 : -1) * 0.5;
-
-  const composite = bioComposite * 0.3 + lunarMod + temporalMod + entropyMod;
-  const polarity = composite >= 0 ? "positive" : "negative";
-  const magnitude = Math.min(Math.abs(composite) * 2.5, 1);
-
-  const resonance = (
-    (bio ? Math.max(bio.physical.value, bio.emotional.value, bio.intuitive.value) : 0) * 0.3 +
-    lunar.energy * 0.35 +
-    temporal.energy * 0.35
-  );
-
-  return { composite, polarity, magnitude, bio, lunar, temporal, sign, bioComposite, resonance };
-}
+// Entropy + Astro functions imported from lib/entropy.js and lib/astro.js
+// CompassRose imported from components/CompassRose.jsx
 
 // ═══════════════════════════════════════════
 // BEHAVIORAL LAYER
@@ -470,118 +267,6 @@ function EntropyVis({ data, polarity }) {
   return <canvas ref={canvasRef} style={{ width: "100%", height: 80, display: "block", borderRadius: 4 }} />;
 }
 
-function CompassRose({ bearing, magnitude, polarity }) {
-  const canvasRef = useRef(null);
-  const frameRef = useRef(0);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const size = 180;
-    canvas.width = size;
-    canvas.height = size;
-    const cx = size / 2, cy = size / 2, r = size * 0.38;
-    const color = polarity === "positive" ? [0, 229, 200] : [255, 60, 80];
-
-    let animId;
-    const draw = () => {
-      frameRef.current++;
-      const t = frameRef.current * 0.015;
-      ctx.clearRect(0, 0, size, size);
-
-      // Outer ring
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.15)`;
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Inner rings
-      for (let i = 1; i <= 3; i++) {
-        ctx.beginPath();
-        ctx.arc(cx, cy, r * (i / 4), 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.06)`;
-        ctx.stroke();
-      }
-
-      // Cardinal directions
-      const dirs = ["N", "E", "S", "W"];
-      dirs.forEach((d, i) => {
-        const a = (i * Math.PI * 2) / 4 - Math.PI / 2;
-        ctx.font = "9px monospace";
-        ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.3)`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(d, cx + Math.cos(a) * (r + 12), cy + Math.sin(a) * (r + 12));
-      });
-
-      // Scan line
-      const scanA = t * 0.4;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + Math.cos(scanA) * r * 0.9, cy + Math.sin(scanA) * r * 0.9);
-      ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.1)`;
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Bearing arrow
-      if (bearing !== null) {
-        const ba = (bearing * Math.PI / 180) - Math.PI / 2;
-        const len = r * (0.3 + magnitude * 0.6);
-        const wobble = Math.sin(t * 2) * 0.03;
-        const fa = ba + wobble;
-        const ax = cx + Math.cos(fa) * len;
-        const ay = cy + Math.sin(fa) * len;
-
-        // Glow
-        const grad = ctx.createLinearGradient(cx, cy, ax, ay);
-        grad.addColorStop(0, `rgba(${color[0]},${color[1]},${color[2]},0.1)`);
-        grad.addColorStop(1, `rgba(${color[0]},${color[1]},${color[2]},0.8)`);
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(ax, ay);
-        ctx.strokeStyle = grad;
-        ctx.lineWidth = 2.5;
-        ctx.lineCap = "round";
-        ctx.stroke();
-
-        // Arrowhead
-        const hl = 8;
-        ctx.beginPath();
-        ctx.moveTo(ax, ay);
-        ctx.lineTo(ax - Math.cos(fa - 0.4) * hl, ay - Math.sin(fa - 0.4) * hl);
-        ctx.moveTo(ax, ay);
-        ctx.lineTo(ax - Math.cos(fa + 0.4) * hl, ay - Math.sin(fa + 0.4) * hl);
-        ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.9)`;
-        ctx.stroke();
-
-        // Center
-        ctx.beginPath();
-        ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.8)`;
-        ctx.fill();
-      }
-
-      // Orbiting dots
-      for (let i = 0; i < 6; i++) {
-        const a = t * (0.3 + i * 0.12) + (i * Math.PI * 2) / 6;
-        const d = r * (0.3 + 0.4 * (0.5 + 0.5 * Math.sin(t * 0.5 + i)));
-        ctx.beginPath();
-        ctx.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, 1 + magnitude * 1.5, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${0.15 + magnitude * 0.3})`;
-        ctx.fill();
-      }
-
-      animId = requestAnimationFrame(draw);
-    };
-    draw();
-    return () => cancelAnimationFrame(animId);
-  }, [bearing, magnitude, polarity]);
-
-  return <canvas ref={canvasRef} style={{ width: 180, height: 180, display: "block", margin: "0 auto" }} />;
-}
-
 function BioWave({ bio }) {
   const canvasRef = useRef(null);
   useEffect(() => {
@@ -699,6 +384,7 @@ export default function DriftfieldApp() {
   const [birthInput, setBirthInput] = useState("");
   const [birthTime, setBirthTime] = useState("");
   const [birthLoc, setBirthLoc] = useState("");
+  const [birthChart, setBirthChart] = useState(null);
 
   // Entropy
   const [entropy, setEntropy] = useState(null);
@@ -735,7 +421,7 @@ export default function DriftfieldApp() {
   // Load
   useEffect(() => {
     const b = load("df_birth", null);
-    if (b) { setBirthDate(new Date(b.date)); setBirthLoc(b.loc || ""); }
+    if (b) { setBirthDate(new Date(b.date)); setBirthLoc(b.loc || ""); setBirthTime(b.time || ""); if (b.chart) setBirthChart(b.chart); }
     setEvents(load("df_events", []));
     setProbeHistory(load("df_probes", []));
     const d = load("df_daily", null);
@@ -764,13 +450,34 @@ export default function DriftfieldApp() {
   // One-shot scan on load
   useEffect(() => { if (loaded) doScan(); }, [loaded, birthDate]);
 
-  const saveBirth = () => {
+  const saveBirth = async () => {
     const parts = birthInput.split("-");
     if (parts.length === 3) {
       const d = new Date(birthInput + (birthTime ? "T" + birthTime : "T12:00"));
       if (!isNaN(d.getTime())) {
         setBirthDate(d);
-        save("df_birth", { date: d.toISOString(), loc: birthLoc });
+
+        let lat = 0, lng = 0;
+        if (birthLoc.trim()) {
+          try {
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(birthLoc)}&format=json&limit=1`,
+              { headers: { "User-Agent": "Driftfield/1.0" } }
+            );
+            const geo = await res.json();
+            if (geo.length > 0) { lat = parseFloat(geo[0].lat); lng = parseFloat(geo[0].lon); }
+          } catch (e) { console.warn("Geocoding failed:", e); }
+        }
+
+        try {
+          const { calculateBirthChart } = await import("./arcana/astro/birth-chart");
+          const chart = calculateBirthChart({ date: d, time: birthTime || undefined, latitude: lat, longitude: lng }, !!isPremium);
+          setBirthChart(chart);
+          save("df_birth", { date: d.toISOString(), loc: birthLoc, time: birthTime, lat, lng, chart });
+        } catch (e) {
+          console.warn("Birth chart calculation failed:", e);
+          save("df_birth", { date: d.toISOString(), loc: birthLoc, time: birthTime });
+        }
       }
     }
   };
@@ -814,11 +521,12 @@ export default function DriftfieldApp() {
   const pColors = { positive: "#00e5c8", negative: "#ff3c50", neutral: "#7a7aff" };
 
   const navItems = [
-    { id: "field", label: "SCAN", icon: "◉" },
-    { id: "probe", label: "PROBE", icon: "⟐" },
-    { id: "log", label: "LOG", icon: "◈" },
-    { id: "decide", label: "DECIDE", icon: "⟁" },
-    { id: "config", label: "SETUP", icon: "⚙" },
+    { id: "field", label: "SCAN", icon: "\u25C9" },
+    { id: "probe", label: "PROBE", icon: "\u27D0" },
+    { id: "arcana", label: "ARCANA", icon: "\u2727" },
+    { id: "log", label: "LOG", icon: "\u25C8" },
+    { id: "decide", label: "DECIDE", icon: "\u27C1" },
+    { id: "config", label: "SETUP", icon: "\u2699" },
   ];
 
   if (!loaded) return <div style={{ background: "#0a0a12", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#333", fontFamily: "monospace" }}>Loading...</div>;
@@ -1234,6 +942,24 @@ export default function DriftfieldApp() {
           </>
         )}
 
+        {/* ═══ ARCANA TAB ═══ */}
+        {view === "arcana" && (
+          <ArcanaErrorBoundary>
+            <ArcanaTab
+              isPremium={isPremium}
+              onUpgrade={() => setShowPremium(true)}
+              field={field && entropy ? {
+                polarity: field.polarity === "positive" ? field.magnitude : -field.magnitude,
+                bearing: (entropy.chiSquared?.statistic ?? 0) % 360,
+                anomalySigma: entropy.anomalyScore ?? 0,
+                bearingElement: field.sign?.element || "",
+                isCharged: (entropy.anomalyScore ?? 0) > 2,
+                entropy: { shannon: entropy.shannon ?? 0 },
+              } : null}
+            />
+          </ArcanaErrorBoundary>
+        )}
+
         {/* ═══ LOG TAB ═══ */}
         {view === "log" && (
           <>
@@ -1332,9 +1058,37 @@ export default function DriftfieldApp() {
                 items.push({ type: "event", data: e, ts: e.timestamp });
               });
 
+              // Add arcana readings from localStorage
+              try {
+                const readings = JSON.parse(localStorage.getItem("df_df_readings") || "[]");
+                readings.slice(-20).forEach(r => {
+                  items.push({ type: "reading", data: r, ts: r.timestamp });
+                });
+              } catch {}
+
+
               items.sort((a, b) => b.ts - a.ts);
 
               return items.slice(0, 25).map((item, i) => {
+                if (item.type === "reading") {
+                  return (
+                    <div key={`r-${item.data.readingId}`} style={{
+                      padding: "7px 10px", marginBottom: 4,
+                      borderLeft: "2px solid #C9A84C35",
+                      background: "#12121e", borderRadius: "0 5px 5px 0",
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: "#444", marginBottom: 1 }}>
+                        <span style={{ color: "#C9A84C" }}>{"\u2727"} {item.data.spreadName}</span>
+                        <span>{new Date(item.data.timestamp).toLocaleDateString()} {new Date(item.data.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: "#999" }}>
+                        {item.data.cards.map(c => c.name).join(" \u00B7 ")}
+                      </div>
+                      {item.data.question && <div style={{ fontSize: 9, color: "#666", fontStyle: "italic", marginTop: 2 }}>"{item.data.question}"</div>}
+                      {item.data.isCharged && <div style={{ fontSize: 8, color: "#C9A84C", marginTop: 2 }}>{"\u26A1"} Charged reading</div>}
+                    </div>
+                  );
+                }
                 if (item.type === "probe") {
                   return (
                     <div key={`p-${item.data.timestamp}`} style={{ marginBottom: 6 }}>
@@ -1479,6 +1233,29 @@ export default function DriftfieldApp() {
                     {birthLoc && <span style={{ color: "#666" }}> · {birthLoc}</span>}
                     {field?.sign && <span style={{ color: pc }}> · {field.sign.symbol} {field.sign.name}</span>}
                   </div>
+                  {birthChart && (
+                    <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
+                      <div>
+                        <div style={{ fontSize: 7, color: "#444", letterSpacing: 1 }}>SUN</div>
+                        <div style={{ fontSize: 11, color: pc }}>{birthChart.sunSign}</div>
+                      </div>
+                      {birthChart.moonSign && (
+                        <div>
+                          <div style={{ fontSize: 7, color: "#444", letterSpacing: 1 }}>MOON</div>
+                          <div style={{ fontSize: 11, color: "#aaa" }}>{birthChart.moonSign}</div>
+                        </div>
+                      )}
+                      {birthChart.risingSign && (
+                        <div>
+                          <div style={{ fontSize: 7, color: "#444", letterSpacing: 1 }}>RISING</div>
+                          <div style={{ fontSize: 11, color: "#aaa" }}>{birthChart.risingSign}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {birthChart && !birthChart.moonSign && (
+                    <div style={{ fontSize: 8, color: "#444", marginTop: 4 }}>Add birth time + location for moon &amp; rising signs</div>
+                  )}
                 </div>
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

@@ -1,10 +1,31 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import { obfuscator } from 'rollup-obfuscator'
+import { obfuscator as rawObfuscator } from 'rollup-obfuscator'
 import { resolve } from 'path'
 
+// Wrap obfuscator to only process proprietary app code
+// Skips: node_modules, arcana engine, files with dynamic imports (preserves chunk splitting)
+function selectiveObfuscator(opts) {
+  const plugin = rawObfuscator(opts);
+  return {
+    ...plugin,
+    transform(code, id) {
+      if (id.includes('node_modules/')) return null;
+      if (id.includes('/src/arcana/') && !id.includes('/spread/templates')) return null;
+      // Preserve dynamic import() paths for chunk splitting
+      if (code.includes('import(')) return null;
+      return plugin.transform.call(this, code, id);
+    },
+  };
+}
+
 export default defineConfig({
+  resolve: {
+    alias: {
+      'circular-natal-horoscope-js': resolve(__dirname, 'node_modules/circular-natal-horoscope-js/dist/index.js'),
+    },
+  },
   plugins: [
     react(),
     VitePWA({
@@ -57,8 +78,23 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         app: resolve(__dirname, 'app/index.html'),
       },
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/scheduler')) {
+            return 'vendor-react';
+          }
+          if (id.includes('node_modules/@supabase')) {
+            return 'vendor-supabase';
+          }
+          // Force arcana engine into its own chunk
+          // Exclude: spread/templates (needed by UI), astro/birth-chart (has own dynamic import)
+          if (id.includes('/src/arcana/') && !id.includes('/spread/templates') && !id.includes('/astro/birth-chart')) {
+            return 'arcana-engine';
+          }
+        },
+      },
       plugins: [
-        obfuscator({
+        ...(process.env.VITE_NO_OBFUSCATE ? [] : [selectiveObfuscator({
           compact: true,
           controlFlowFlattening: true,
           controlFlowFlatteningThreshold: 0.5,
@@ -74,7 +110,7 @@ export default defineConfig({
           stringArrayShuffle: true,
           transformObjectKeys: true,
           unicodeEscapeSequence: false,
-        }),
+        })]),
       ],
     },
   },
