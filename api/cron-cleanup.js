@@ -9,16 +9,30 @@
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js';
+import { timingSafeEqual } from 'crypto';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || '',
 );
 
+function safeCompare(a, b) {
+  if (!a || !b) return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
+
 export default async function handler(req, res) {
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   // Verify cron secret (Vercel sets this header for cron jobs)
   const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const expected = `Bearer ${process.env.CRON_SECRET}`;
+  if (!safeCompare(authHeader, expected)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -40,6 +54,10 @@ export default async function handler(req, res) {
     // 3. Dismissed patterns
     const { data: patternsResult, error: patternsErr } = await supabase.rpc('cleanup_dismissed_patterns');
     results.patterns = patternsErr ? { error: patternsErr.message } : { deleted: patternsResult };
+
+    // 4. Expired rate limit entries
+    const { data: rateLimitResult, error: rateLimitErr } = await supabase.rpc('cleanup_rate_limits');
+    results.rateLimits = rateLimitErr ? { error: rateLimitErr.message } : { deleted: rateLimitResult };
 
     const hasErrors = Object.values(results).some(r => r.error);
     console.log('Cleanup results:', JSON.stringify(results));

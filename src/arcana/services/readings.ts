@@ -199,6 +199,9 @@ export async function updateOutcomeNotes(
   notes: string,
   rating?: number
 ): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
   const update: Record<string, any> = {
     outcome_notes: notes,
     outcome_logged_at: new Date().toISOString()
@@ -208,7 +211,8 @@ export async function updateOutcomeNotes(
   const { error } = await supabase
     .from('readings')
     .update(update)
-    .eq('id', readingId);
+    .eq('id', readingId)
+    .eq('user_id', user.id);
 
   return !error;
 }

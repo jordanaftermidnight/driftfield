@@ -24,7 +24,7 @@ Built on research by Wiseman (*The Luck Factor*), Shannon (*A Mathematical Theor
 The field dashboard. Fire probes with an intention, compare two choices and let the field weigh in, log synchronicities as they happen, and track how your probability surface shifts over time. Entropy compass, field strength, signal analysis, weekly drift reports.
 
 ### ARCANA
-A tarot reading engine wired directly into the entropy field. 78 Rider-Waite-Smith cards, 12 spread templates, procedurally generated card backs, and narrative that responds to your question, the cards drawn, and the current state of the field. The same cryptographic entropy that powers the scanner also shuffles the deck — every card drawn is a measurement of the field at that moment. Not random. Responsive.
+A tarot reading engine wired directly into the entropy field. 78 Rider-Waite-Smith cards, 10 spread templates, procedurally generated card backs, and narrative that responds to your question, the cards drawn, and the current state of the field. The same cryptographic entropy that powers the scanner also shuffles the deck — every card drawn is a measurement of the field at that moment. Not random. Responsive.
 
 ### SETUP
 Birth date, time, and location for personalized biorhythm and natal chart overlays. Account, subscription, theme, and data management.
@@ -58,7 +58,7 @@ The result is an oracle that's grounded in real mathematics but doesn't feel cli
 
 Free tier: 1 probe and 1 reading per day, 6 spreads, practical tone.
 
-Premium unlocks unlimited probes and readings, all 12 spread templates, all narrative tones (mystical, analytical, poetic, direct), extended domain focus, full event history, deep entropy analysis, pattern detection, data export, and cloud sync.
+Premium unlocks unlimited probes and readings, all 10 spread templates, all narrative tones (esoteric, analytical, poetic), extended domain focus, full event history, deep entropy analysis, pattern detection, data export, and cloud sync.
 
 ---
 

@@ -75,8 +75,8 @@ export default async function handler(req, res) {
           supabase_user_id: user.id,
         },
       },
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL || req.headers.origin}/?payment=success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || req.headers.origin}/?payment=cancelled`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/?payment=success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/?payment=cancelled`,
       allow_promotion_codes: true,
     });
 

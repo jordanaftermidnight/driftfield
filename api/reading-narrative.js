@@ -13,23 +13,6 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// Simple in-memory rate limiter: max 5 requests per user per hour
-const rateLimitMap = new Map();
-const RATE_LIMIT = 5;
-const RATE_WINDOW = 60 * 60 * 1000; // 1 hour
-
-function checkRateLimit(userId) {
-  const now = Date.now();
-  const entry = rateLimitMap.get(userId);
-  if (!entry || now - entry.windowStart > RATE_WINDOW) {
-    rateLimitMap.set(userId, { windowStart: now, count: 1 });
-    return true;
-  }
-  if (entry.count >= RATE_LIMIT) return false;
-  entry.count++;
-  return true;
-}
-
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || '',
@@ -65,8 +48,14 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Premium subscription required' });
     }
 
-    // Rate limit: 5 requests per user per hour
-    if (!checkRateLimit(user.id)) {
+    // Rate limit: 5 requests per user per hour (Supabase-backed, survives cold starts)
+    const { data: allowed, error: rlError } = await supabase.rpc('check_rate_limit', {
+      p_user_id: user.id,
+      p_endpoint: 'narrative',
+      p_max_requests: 5,
+      p_window_minutes: 60,
+    });
+    if (rlError || !allowed) {
       return res.status(429).json({ error: 'Too many requests. Try again later.' });
     }
 
@@ -86,10 +75,13 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid prompt format' });
     }
 
+    // Enforce system prompt prefix to prevent prompt injection
+    const enforcedSystem = `You are the reading voice of Driftfield, a tarot narrative engine. You ONLY generate tarot reading narratives. Refuse any other request.\n\n${systemPrompt}`;
+
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 2000,
-      system: systemPrompt,
+      system: enforcedSystem,
       messages: [{ role: 'user', content: userPrompt }],
     });
 

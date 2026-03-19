@@ -77,8 +77,11 @@ export default async function handler(req, res) {
       model: 'imagen-3.0-generate-002',
     });
 
+    // Constrain image generation to tarot card back designs
+    const safePrompt = `Tarot card back design: ${prompt.slice(0, 2500)}. Style: ornate, symmetrical, mystical. No text, no faces, no real people.`;
+
     const result = await model.generateImages({
-      prompt,
+      prompt: safePrompt,
       config: {
         numberOfImages: 1,
         aspectRatio: '9:16',

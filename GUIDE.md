@@ -44,7 +44,7 @@ Your main dashboard. Everything flows through here.
 
 A full tarot reading engine wired into the entropy field.
 
-The same cryptographic randomness that powers the scanner also shuffles the deck. Every card drawn is a measurement of the field at the moment of your question. The arcana engine uses 78 Waite-Smith cards (the original 1909 public domain artwork by Pamela Colman Smith), 12 spread templates, and procedurally generated card backs unique to each reading.
+The same cryptographic randomness that powers the scanner also shuffles the deck. Every card drawn is a measurement of the field at the moment of your question. The arcana engine uses 78 Waite-Smith cards (the original 1909 public domain artwork by Pamela Colman Smith), 10 spread templates, and procedurally generated card backs unique to each reading.
 
 **How to use it:**
 
@@ -55,9 +55,9 @@ The same cryptographic randomness that powers the scanner also shuffles the deck
 
 The narrative isn't generic. It responds to what was actually drawn, references card relationships and position meanings, and adjusts its voice based on the entropy conditions during your reading. A reading drawn during a high-entropy anomaly reads differently than one drawn during statistical calm.
 
-**Tones:** Practical (free), plus mystical, analytical, poetic, and direct (premium).
+**Tones:** Practical (free), plus esoteric, analytical, and poetic (premium).
 
-**Spreads:** 6 free, 12 with premium.
+**Spreads:** 6 free, 10 total with premium.
 
 ### 3. Setup
 

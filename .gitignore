@@ -5,6 +5,10 @@
 .env.*
 !.env.example
 !.env.template
+*.pem
+*.key
+*.p12
+*.pfx
 # === End security-critical ===
 
 # OS
