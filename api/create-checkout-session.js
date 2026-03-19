@@ -36,8 +36,14 @@ export default async function handler(req, res) {
 
     const { priceId } = req.body;
 
-    if (!priceId) {
-      return res.status(400).json({ error: 'Missing required field: priceId' });
+    // Validate price ID against known Stripe prices
+    const allowedPrices = [
+      process.env.VITE_STRIPE_PRICE_MONTHLY,
+      process.env.VITE_STRIPE_PRICE_YEARLY,
+    ].filter(Boolean);
+
+    if (!priceId || !allowedPrices.includes(priceId)) {
+      return res.status(400).json({ error: 'Invalid price' });
     }
 
     const session = await stripe.checkout.sessions.create({
