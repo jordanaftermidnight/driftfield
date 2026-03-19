@@ -86,7 +86,8 @@ export function executePullPhase(
   shuffleResult: ShuffleResult,
   spread: SpreadTemplate,
   pullConfig: PullConfig,
-  reversalsEnabled: boolean = true
+  reversalsEnabled: boolean = true,
+  shuffleMethod: string = 'riffle'
 ): DrawnCard[] {
   const { deck, jumperCandidates } = shuffleResult;
   const drawn: DrawnCard[] = [];
@@ -119,7 +120,7 @@ export function executePullPhase(
         // They don't occupy a spread position — they're additive
         drawn.push({
           card: activeDeck[jumperIdx],
-          orientation: determineOrientation(shuffleResult.fieldSnapshot.entropy.byteCount > 0 ? 'wash' : 'overhand', reversalsEnabled),
+          orientation: determineOrientation(shuffleMethod, reversalsEnabled),
           positionIndex: -1, // special: not a spread position
           positionName: 'Jumper',
           isJumper: true,
@@ -150,7 +151,7 @@ export function executePullPhase(
 
         drawn.push({
           card: activeDeck[drawIdx],
-          orientation: determineOrientation(shuffleResult.fieldSnapshot.entropy.byteCount > 0 ? 'overhand' : 'overhand', reversalsEnabled),
+          orientation: determineOrientation(shuffleMethod, reversalsEnabled),
           positionIndex: posIdx,
           positionName: pos?.name ?? `Position ${posIdx}`,
           isJumper: false,
@@ -282,7 +283,7 @@ export function executeEntropyStageFull(
   const shuffleResult = executeShufflePhase(deck, shuffleConfig);
 
   // Phase 2: Pull
-  const drawnCards = executePullPhase(shuffleResult, spread, pullConfig, reversalsEnabled);
+  const drawnCards = executePullPhase(shuffleResult, spread, pullConfig, reversalsEnabled, shuffleConfig.method);
 
   return {
     drawnCards,

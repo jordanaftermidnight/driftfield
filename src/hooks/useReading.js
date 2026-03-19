@@ -144,7 +144,7 @@ export function useReading() {
     setPhase('configuring');
   }, []);
 
-  const executeReading = useCallback(async () => {
+  const executeReading = useCallback(async (externalContext) => {
     setPhase('drawing');
     setIsProcessing(true);
     setError(null);
@@ -166,6 +166,9 @@ export function useReading() {
           sunSign: birthChartData?.chart?.sunSign,
           moonSign: birthChartData?.chart?.moonSign,
           risingSign: birthChartData?.chart?.risingSign,
+          recentPatterns: externalContext?.recentPatterns || undefined,
+          lastReadingCards: externalContext?.lastReadingCards || undefined,
+          recentJournalExcerpt: externalContext?.recentJournalExcerpt || undefined,
         },
       };
 
@@ -222,7 +225,7 @@ export function useReading() {
     } finally {
       setIsProcessing(false);
     }
-  }, [question, settings, domainTags, user, isPremium]);
+  }, [question, settings, domainTags, user, isPremium, session]);
 
   const saveReading = useCallback(async () => {
     if (!reading) return;

@@ -22,12 +22,16 @@ function fieldToSeed(field) {
 }
 
 export const GenerativeCardBack = memo(function GenerativeCardBack({
-  width = 80,
+  width = 140,
   height,
   field,
 }) {
   const h = height || Math.round(width * 1.56);
   const canvasRef = useRef(null);
+  // Detect theme from DOM
+  const isDark = typeof document !== "undefined"
+    ? document.querySelector("[data-theme]")?.getAttribute("data-theme") !== "light"
+    : true;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -48,28 +52,43 @@ export const GenerativeCardBack = memo(function GenerativeCardBack({
 
     // Polarity shifts gold hue (warm when positive, cool when negative)
     const pol = field?.polarity || 0;
-    const gR = Math.max(0, Math.min(255, 201 + Math.round(pol * 25)));
-    const gG = Math.max(0, Math.min(255, 168 - Math.round(Math.abs(pol) * 12)));
-    const gB = Math.max(0, Math.min(255, 76 - Math.round(pol * 25)));
+    const gR = isDark
+      ? Math.max(0, Math.min(255, 201 + Math.round(pol * 25)))
+      : Math.max(0, Math.min(255, 140 + Math.round(pol * 20)));
+    const gG = isDark
+      ? Math.max(0, Math.min(255, 168 - Math.round(Math.abs(pol) * 12)))
+      : Math.max(0, Math.min(255, 110 - Math.round(Math.abs(pol) * 10)));
+    const gB = isDark
+      ? Math.max(0, Math.min(255, 76 - Math.round(pol * 25)))
+      : Math.max(0, Math.min(255, 30 - Math.round(pol * 15)));
     const gold = (a) => `rgba(${gR},${gG},${gB},${a})`;
 
     // ── Background ──────────────────────────────────────────────
     const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(width, h));
-    grad.addColorStop(0, "#16213e");
-    grad.addColorStop(0.6, "#141a30");
-    grad.addColorStop(1, "#0e0e1a");
+    if (isDark) {
+      grad.addColorStop(0, "#16213e");
+      grad.addColorStop(0.6, "#141a30");
+      grad.addColorStop(1, "#0e0e1a");
+    } else {
+      grad.addColorStop(0, "#e8e4da");
+      grad.addColorStop(0.6, "#ddd8cc");
+      grad.addColorStop(1, "#d0cabb");
+    }
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, width, h);
 
+    // Opacity boost for light mode
+    const am = isDark ? 1 : 2;
+
     // ── Border frame ────────────────────────────────────────────
     const inset = 3;
-    ctx.strokeStyle = gold(0.2);
+    ctx.strokeStyle = gold(Math.min(0.2 * am, 1));
     ctx.lineWidth = 0.5;
     ctx.strokeRect(inset, inset, width - inset * 2, h - inset * 2);
 
     // Corner accents
     const cLen = Math.min(width, h) * 0.13;
-    ctx.strokeStyle = gold(0.4);
+    ctx.strokeStyle = gold(Math.min(0.4 * am, 1));
     ctx.lineWidth = 1;
     for (const [x, y, dx, dy] of [
       [inset, inset, 1, 1],
@@ -87,7 +106,7 @@ export const GenerativeCardBack = memo(function GenerativeCardBack({
     // ── Radial grid ─────────────────────────────────────────────
     const bearing = ((field?.bearing || 0) * Math.PI) / 180;
     const gridLines = 8 + Math.floor(rng() * 8);
-    ctx.strokeStyle = gold(0.06);
+    ctx.strokeStyle = gold(Math.min(0.06 * am, 1));
     ctx.lineWidth = 0.5;
     for (let i = 0; i < gridLines; i++) {
       const a = bearing + (i * Math.PI * 2) / gridLines;
@@ -102,7 +121,7 @@ export const GenerativeCardBack = memo(function GenerativeCardBack({
     for (let i = 1; i <= rings; i++) {
       ctx.beginPath();
       ctx.arc(cx, cy, r * (i / rings), 0, Math.PI * 2);
-      ctx.strokeStyle = gold(0.07 + rng() * 0.06);
+      ctx.strokeStyle = gold(Math.min((0.07 + rng() * 0.06) * am, 1));
       ctx.lineWidth = 0.5;
       ctx.stroke();
     }
@@ -119,7 +138,7 @@ export const GenerativeCardBack = memo(function GenerativeCardBack({
       const py = cy + Math.sin(a) * r * 0.85;
       i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
     }
-    ctx.strokeStyle = gold(0.3);
+    ctx.strokeStyle = gold(Math.min(0.3 * am, 1));
     ctx.lineWidth = 1;
     ctx.stroke();
 
@@ -133,12 +152,12 @@ export const GenerativeCardBack = memo(function GenerativeCardBack({
       const py = cy + Math.sin(a) * r * 0.5;
       i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
     }
-    ctx.strokeStyle = gold(0.2);
+    ctx.strokeStyle = gold(Math.min(0.2 * am, 1));
     ctx.lineWidth = 0.75;
     ctx.stroke();
 
     // Connect outer → inner vertices
-    ctx.strokeStyle = gold(0.1);
+    ctx.strokeStyle = gold(Math.min(0.1 * am, 1));
     ctx.lineWidth = 0.5;
     for (let i = 0; i < sides; i++) {
       const outerA = polyRot + (i * Math.PI * 2) / sides;
@@ -154,7 +173,7 @@ export const GenerativeCardBack = memo(function GenerativeCardBack({
       const a = polyRot + (i * Math.PI * 2) / sides;
       ctx.beginPath();
       ctx.arc(cx + Math.cos(a) * r * 0.85, cy + Math.sin(a) * r * 0.85, 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = gold(0.4);
+      ctx.fillStyle = gold(Math.min(0.4 * am, 1));
       ctx.fill();
     }
 
@@ -165,22 +184,22 @@ export const GenerativeCardBack = memo(function GenerativeCardBack({
       const d = r * (0.55 + rng() * 0.4);
       ctx.beginPath();
       ctx.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, 0.6 + rng() * 0.6, 0, Math.PI * 2);
-      ctx.fillStyle = gold(0.12 + rng() * 0.18);
+      ctx.fillStyle = gold(Math.min((0.12 + rng() * 0.18) * am, 1));
       ctx.fill();
     }
 
     // ── Center mark ─────────────────────────────────────────────
     ctx.beginPath();
     ctx.arc(cx, cy, r * 0.15, 0, Math.PI * 2);
-    ctx.strokeStyle = gold(0.2);
+    ctx.strokeStyle = gold(Math.min(0.2 * am, 1));
     ctx.lineWidth = 0.5;
     ctx.stroke();
 
     ctx.beginPath();
     ctx.arc(cx, cy, 2, 0, Math.PI * 2);
-    ctx.fillStyle = gold(0.5);
+    ctx.fillStyle = gold(Math.min(0.5 * am, 1));
     ctx.fill();
-  }, [width, h, field?.bearing, field?.polarity, field?.anomalySigma]);
+  }, [width, h, field?.bearing, field?.polarity, field?.anomalySigma, isDark]);
 
   return (
     <canvas

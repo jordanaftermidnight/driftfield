@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef, Component } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, Component } from "react";
 import { shareProbeCard, shareScoreCard } from "./probeCard.js";
 import { useAuth } from "./hooks/useAuth";
+import { useTheme } from "./hooks/useTheme";
 import { AuthModal } from "./components/auth/AuthModal";
 import { PremiumModal } from "./components/auth/PremiumModal";
 import { canFireProbe, hasFeature } from "./lib/premium";
@@ -9,6 +10,9 @@ import { fullEntropyAnalysis } from "./lib/entropy";
 import { biorhythm, lunarPhase, temporalGate, zodiacSign, calculateField } from "./lib/astro";
 import { CompassRose } from "./components/CompassRose";
 import { ArcanaTab } from "./components/ArcanaTab";
+import "./theme.css";
+
+const GOLD_HEX = "#C9A84C";
 
 /*
   DRIFTFIELD — Serendipity Engine
@@ -27,10 +31,10 @@ class ArcanaErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--df-text-muted)' }}>
           <p style={{ fontSize: 18, marginBottom: 12 }}>Something went wrong with the reading engine.</p>
           <button onClick={() => this.setState({ hasError: false })}
-            style={{ background: 'none', border: '1px solid #C9A84C', color: '#C9A84C', padding: '8px 20px', cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ background: 'none', border: '1px solid var(--df-gold)', color: 'var(--df-gold)', padding: '8px 20px', cursor: 'pointer', fontFamily: 'inherit' }}>
             TRY AGAIN
           </button>
         </div>
@@ -73,6 +77,35 @@ function scoreSurface(entry) {
   return { score: Math.min(score, 100), factors };
 }
 
+function calculateMomentum(probeHistory, events, dayScore) {
+  const weekAgo = Date.now() - 7 * 86400000;
+  const weekProbes = probeHistory.filter(p => p.timestamp > weekAgo);
+  const weekEvents = events.filter(e => e.timestamp > weekAgo);
+
+  // Surface area component (0.25): daily score normalized
+  const surfaceWeight = dayScore ? (dayScore.score / 100) * 25 : 0;
+
+  // Probe follow-through (0.30): % of recent probes followed
+  const followedCount = weekProbes.filter(p => p.followed).length;
+  const followWeight = weekProbes.length > 0 ? (followedCount / weekProbes.length) * 30 : 0;
+
+  // Reading frequency (0.20): readings this week, capped at 5
+  let weekReadings = 0;
+  try {
+    const readings = JSON.parse(localStorage.getItem('df_df_readings') || '[]');
+    weekReadings = readings.filter(r => r.timestamp > weekAgo).length;
+  } catch {}
+  const readingWeight = Math.min(weekReadings / 5, 1) * 20;
+
+  // Logging consistency (0.25): days with activity this week
+  const activeDays = new Set();
+  weekEvents.forEach(e => activeDays.add(new Date(e.timestamp).toDateString()));
+  weekProbes.filter(p => p.followed).forEach(p => activeDays.add(new Date(p.timestamp).toDateString()));
+  const logWeight = Math.min(activeDays.size / 5, 1) * 25;
+
+  return Math.round(surfaceWeight + followWeight + readingWeight + logWeight);
+}
+
 function analyzePatterns(events) {
   if (events.length < 3) return { patterns: [], insight: "Log 3+ events to detect patterns." };
   const patterns = [];
@@ -108,26 +141,46 @@ function analyzePatterns(events) {
   return { patterns, insight: patterns.length ? "Active patterns in field." : "No strong patterns yet." };
 }
 
-function evaluateDecision(a, b) {
+function evaluateDecision(a, b, fieldState) {
   const sc = (o) => {
     let s = 0, n = [];
-    if (o.isNovel) { s += 25; n.push("Novel — expands possibility space"); } else { s += 5; n.push("Familiar — predictable"); }
-    if (o.meetsNew) { s += 20; n.push("New people = new weak ties"); }
-    if (o.crowd) { s += 10; n.push("Crowd exposure"); }
-    if (o.reversible) { s += 15; n.push("Reversible — low risk"); } else { s += 5; n.push("Irreversible — higher stakes"); }
-    if (o.opens) { s += 20; n.push("Opens future paths"); }
-    if (o.closes) { s -= 10; n.push("Closes paths"); }
-    if (o.gut === "excited") { s += 15; n.push("Intuition says yes"); }
+    if (o.isNovel) { s += 30; n.push("Novel — expands possibility space"); } else { s += 5; n.push("Familiar — predictable"); }
+    if (o.meetsNew) { s += 25; n.push("New people = new weak ties"); }
+    if (o.opens) { s += 25; n.push("Opens future paths"); }
+    if (o.gut === "excited") { s += 20; n.push("Intuition says yes"); }
     else if (o.gut === "anxious") { s += 10; n.push("Growth-edge anxiety"); }
-    else if (o.gut === "dread") { s -= 5; n.push("Dread signal"); }
     else n.push("No intuition signal");
     return { score: s, notes: n };
   };
   const ra = sc(a), rb = sc(b), d = ra.score - rb.score;
-  const verdict = Math.abs(d) < 10 ? "Near-equal. Flip a coin — both expand surface area."
-    : d > 0 ? `Option A: +${d} serendipity potential.`
-    : `Option B: +${Math.abs(d)} serendipity potential.`;
-  return { a: ra, b: rb, diff: d, verdict };
+  let fieldVerdict = null;
+
+  // Field tiebreaker: only activates when scores are within 10 points
+  if (fieldState && Math.abs(d) < 10) {
+    const bonus = Math.round(Math.abs(fieldState.resonance || 0) * 5);
+    if (bonus > 0) {
+      if (fieldState.polarity > 0) {
+        // Positive field rewards the more open option
+        const moreOpen = (a.opens && !b.opens) ? "A" : (b.opens && !a.opens) ? "B"
+          : (a.isNovel && !b.isNovel) ? "A" : (b.isNovel && !a.isNovel) ? "B" : null;
+        if (moreOpen === "A") { ra.score += bonus; fieldVerdict = `Field is positive — nudging toward A (+${bonus})`; }
+        else if (moreOpen === "B") { rb.score += bonus; fieldVerdict = `Field is positive — nudging toward B (+${bonus})`; }
+        else { fieldVerdict = "Field is positive but both options are equally open."; }
+      } else {
+        // Negative field rewards the less novel option
+        const moreCautious = (!a.isNovel && b.isNovel) ? "A" : (!b.isNovel && a.isNovel) ? "B" : null;
+        if (moreCautious === "A") { ra.score += bonus; fieldVerdict = `Field is contracting — favoring caution in A (+${bonus})`; }
+        else if (moreCautious === "B") { rb.score += bonus; fieldVerdict = `Field is contracting — favoring caution in B (+${bonus})`; }
+        else { fieldVerdict = "Field is contracting — proceed carefully with either."; }
+      }
+    }
+  }
+
+  const finalD = ra.score - rb.score;
+  const verdict = Math.abs(finalD) < 10 ? "Near-equal. Flip a coin — both expand surface area."
+    : finalD > 0 ? `Option A: +${finalD} serendipity potential.`
+    : `Option B: +${Math.abs(finalD)} serendipity potential.`;
+  return { a: ra, b: rb, diff: finalD, verdict, fieldVerdict };
 }
 
 // ═══════════════════════════════════════════
@@ -235,21 +288,28 @@ function generateProbe(intention, entropy, field) {
 // VISUALIZATION COMPONENTS
 // ═══════════════════════════════════════════
 
-function EntropyVis({ data, polarity }) {
+function EntropyVis({ data, polarity, isDark = true }) {
   const canvasRef = useRef(null);
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !data) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.offsetWidth;
+    const h = 80;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
     const ctx = canvas.getContext("2d");
-    const w = canvas.width = canvas.offsetWidth;
-    const h = canvas.height = 80;
+    ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, w, h);
-    const color = polarity === "positive" ? [0, 229, 200] : [255, 60, 80];
+    const color = isDark
+      ? (polarity === "positive" ? [0, 229, 200] : [255, 60, 80])
+      : (polarity === "positive" ? [12, 100, 90] : [170, 45, 50]);
     const barW = w / data.length;
+    const am = isDark ? 1 : 1.8;
     for (let i = 0; i < data.length; i++) {
       const val = data[i] / 255;
       const barH = val * h * 0.8;
-      const alpha = 0.3 + val * 0.5;
+      const alpha = Math.min((0.3 + val * 0.5) * am, 1);
       ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${alpha})`;
       ctx.fillRect(i * barW, h - barH, barW - 0.5, barH);
     }
@@ -259,22 +319,26 @@ function EntropyVis({ data, polarity }) {
     ctx.beginPath();
     ctx.moveTo(0, meanY);
     ctx.lineTo(w, meanY);
-    ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.6)`;
+    ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${Math.min(0.6 * am, 1)})`;
     ctx.lineWidth = 1;
     ctx.setLineDash([3, 3]);
     ctx.stroke();
-  }, [data, polarity]);
+  }, [data, polarity, isDark]);
   return <canvas ref={canvasRef} style={{ width: "100%", height: 80, display: "block", borderRadius: 4 }} />;
 }
 
-function BioWave({ bio }) {
+function BioWave({ bio, isDark = true }) {
   const canvasRef = useRef(null);
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !bio) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.offsetWidth;
+    const h = 70;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
     const ctx = canvas.getContext("2d");
-    const w = canvas.width = canvas.offsetWidth;
-    const h = canvas.height = 70;
+    ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, w, h);
     const mid = h / 2;
     const colors = ["#ff6b6b", "#4ecdc4", "#45b7d1", "#c084fc"];
@@ -287,7 +351,7 @@ function BioWave({ bio }) {
         const y = mid - Math.sin((2 * Math.PI * dayOff) / ch.cycle) * (mid - 8);
         x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
       }
-      ctx.strokeStyle = colors[ci] + "40";
+      ctx.strokeStyle = colors[ci] + (isDark ? "40" : "60");
       ctx.lineWidth = 1;
       ctx.stroke();
 
@@ -304,11 +368,11 @@ function BioWave({ bio }) {
     ctx.beginPath();
     ctx.moveTo(w / 2, 0);
     ctx.lineTo(w / 2, h);
-    ctx.strokeStyle = "#ffffff15";
+    ctx.strokeStyle = isDark ? "#ffffff15" : "#00000015";
     ctx.lineWidth = 1;
     ctx.setLineDash([2, 3]);
     ctx.stroke();
-  }, [bio]);
+  }, [bio, isDark]);
   return <canvas ref={canvasRef} style={{ width: "100%", height: 70, display: "block" }} />;
 }
 
@@ -318,15 +382,15 @@ function BioWave({ bio }) {
 
 function Toggle({ checked, onChange, label }) {
   return (
-    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 11, color: "#999" }}>
+    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 11, color: "var(--df-text-secondary)" }}>
       <div onClick={() => onChange(!checked)} style={{
         width: 34, height: 18, borderRadius: 9, flexShrink: 0,
-        background: checked ? "#00e5c825" : "#1a1a2e", border: `1px solid ${checked ? "#00e5c850" : "#2a2a45"}`,
+        background: checked ? `${GOLD_HEX}25` : "var(--df-border-subtle)", border: `1px solid ${checked ? `${GOLD_HEX}60` : "var(--df-border-input)"}`,
         position: "relative", transition: "all 0.2s", cursor: "pointer",
       }}>
         <div style={{
           width: 12, height: 12, borderRadius: 6,
-          background: checked ? "#00e5c8" : "#444", position: "absolute", top: 2,
+          background: checked ? "var(--df-gold)" : "var(--df-text-faint)", position: "absolute", top: 2,
           left: checked ? 18 : 3, transition: "all 0.2s",
         }} />
       </div>
@@ -338,32 +402,32 @@ function Toggle({ checked, onChange, label }) {
 function Stat({ label, value, sub, color }) {
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ fontSize: 9, color: "#555", letterSpacing: 1, marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 200, color: color || "#ccc" }}>{value}</div>
-      {sub && <div style={{ fontSize: 8, color: "#444" }}>{sub}</div>}
+      <div style={{ fontSize: 9, color: "var(--df-gold)", opacity: 0.55, letterSpacing: 1, marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 200, color: color || "var(--df-text)" }}>{value}</div>
+      {sub && <div style={{ fontSize: 9, color: "var(--df-text-faint)" }}>{sub}</div>}
     </div>
   );
 }
 
 function Section({ title, children, style: s }) {
   return (
-    <div style={{ background: "#12121e", border: "1px solid #1e1e35", borderRadius: 8, padding: 14, marginBottom: 12, ...s }}>
-      {title && <div style={{ fontSize: 9, letterSpacing: 2, color: "#555", marginBottom: 10 }}>{title}</div>}
+    <div style={{ background: "var(--df-surface)", border: `1.5px solid var(--df-border-warm)`, borderRadius: 8, padding: 14, marginBottom: 12, ...s }}>
+      {title && <div style={{ fontSize: 10, letterSpacing: 2, color: "var(--df-gold)", opacity: 0.7, marginBottom: 10 }}>{title}</div>}
       {children}
     </div>
   );
 }
 
-function Btn({ children, onClick, color = "#00e5c8", full, small, dim }) {
+function Btn({ children, onClick, color, colorHex = "#00e5c8", full, small, dim }) {
   return (
     <button onClick={onClick} style={{
       width: full ? "100%" : "auto",
-      padding: small ? "5px 12px" : "9px 20px",
-      borderRadius: 5, background: dim ? "transparent" : `${color}12`,
-      border: `1px solid ${color}${dim ? "30" : "40"}`,
-      color: dim ? "#555" : color,
-      fontSize: small ? 9 : 10, letterSpacing: small ? 1 : 2,
-      cursor: "pointer", fontFamily: "monospace", transition: "all 0.2s",
+      padding: small ? "6px 12px" : "10px 20px",
+      borderRadius: 5, background: dim ? "transparent" : `${colorHex}12`,
+      border: `1.5px solid ${dim ? GOLD_HEX + "25" : colorHex + "40"}`,
+      color: dim ? "var(--df-text-dim)" : (color || colorHex),
+      fontSize: small ? 10 : 11, letterSpacing: small ? 1 : 2,
+      cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s",
     }}>{children}</button>
   );
 }
@@ -374,6 +438,7 @@ function Btn({ children, onClick, color = "#00e5c8", full, small, dim }) {
 
 export default function DriftfieldApp() {
   const { isAuthenticated, user, profile, isPremium, signOut, supabaseConfigured } = useAuth();
+  const { theme, toggleTheme, isDark } = useTheme();
   const [showAuth, setShowAuth] = useState(false);
   const [showPremium, setShowPremium] = useState(false);
   const [view, setView] = useState("field");
@@ -414,9 +479,19 @@ export default function DriftfieldApp() {
   const [shared, setShared] = useState(false);
 
   // Decision
-  const [optA, setOptA] = useState({ label: "", isNovel: false, meetsNew: false, crowd: false, reversible: true, opens: false, closes: false, gut: "neutral" });
-  const [optB, setOptB] = useState({ label: "", isNovel: false, meetsNew: false, crowd: false, reversible: true, opens: false, closes: false, gut: "neutral" });
+  const [optA, setOptA] = useState({ label: "", isNovel: false, meetsNew: false, opens: false, gut: "neutral" });
+  const [optB, setOptB] = useState({ label: "", isNovel: false, meetsNew: false, opens: false, gut: "neutral" });
   const [decResult, setDecResult] = useState(null);
+
+  // Cross-tab interconnection
+  const [arcanaInitialQuestion, setArcanaInitialQuestion] = useState(null);
+  const [logPrefill, setLogPrefill] = useState(null);
+  const [lastSavedReading, setLastSavedReading] = useState(null);
+
+  // UX: collapsible sections
+  const [showDailyExpanded, setShowDailyExpanded] = useState(false);
+  const [showProbeExpanded, setShowProbeExpanded] = useState(false);
+  const [probeMode, setProbeMode] = useState("single");
 
   // Load
   useEffect(() => {
@@ -432,6 +507,15 @@ export default function DriftfieldApp() {
   // Save
   useEffect(() => { if (loaded) save("df_events", events); }, [events, loaded]);
   useEffect(() => { if (loaded) save("df_probes", probeHistory); }, [probeHistory, loaded]);
+
+  // Apply log prefill
+  useEffect(() => {
+    if (logPrefill) {
+      setEventText(logPrefill.text || "");
+      if (logPrefill.category) setEventCat(logPrefill.category);
+      setLogPrefill(null);
+    }
+  }, [logPrefill]);
 
   // Analytics
   useEffect(() => { trackAppOpen(); }, []);
@@ -507,7 +591,12 @@ export default function DriftfieldApp() {
 
   const addEvent = () => {
     if (!eventText.trim()) return;
-    setEvents(prev => [...prev, { text: eventText.trim(), polarity: eventPol, category: eventCat.trim() || null, linkedProbeId: linkedProbeId || null, timestamp: Date.now(), id: Date.now() }]);
+    // Auto-link to most recent unfollowed probe within 24h
+    const autoLink = linkedProbeId || (() => {
+      const recent = probeHistory.filter(p => !p.followed && Date.now() - p.timestamp < 86400000);
+      return recent.length > 0 ? recent[recent.length - 1].timestamp : null;
+    })();
+    setEvents(prev => [...prev, { text: eventText.trim(), polarity: eventPol, category: eventCat.trim() || null, linkedProbeId: autoLink, timestamp: Date.now(), id: Date.now() }]);
     setEventText(""); setEventCat(""); setLinkedProbeId(null);
   };
 
@@ -517,41 +606,117 @@ export default function DriftfieldApp() {
   };
 
   const patterns = analyzePatterns(events);
-  const pc = (field?.polarity === "positive" || !field) ? "#00e5c8" : "#ff3c50";
-  const pColors = { positive: "#00e5c8", negative: "#ff3c50", neutral: "#7a7aff" };
+
+  const sessionContext = useMemo(() => {
+    // Active probe intention + action
+    const lastProbe = probeHistory[probeHistory.length - 1];
+    const activeProbeIntention = lastProbe?.intention || null;
+    const activeProbeAction = lastProbe?.action?.label || null;
+
+    // Last reading cards from localStorage
+    let lastReadingCards = null;
+    try {
+      const readings = JSON.parse(localStorage.getItem('df_df_readings') || '[]');
+      if (readings.length > 0) {
+        lastReadingCards = readings[readings.length - 1].cards;
+      }
+    } catch {}
+
+    // Recent patterns
+    const recentPatterns = patterns.patterns.length > 0
+      ? patterns.patterns.map(p => `${p.type}: ${p.label}`)
+      : null;
+
+    // Top 3 event categories
+    const catCounts = {};
+    events.forEach(e => { if (e.category) catCounts[e.category] = (catCounts[e.category] || 0) + 1; });
+    const topEventCategories = Object.entries(catCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([cat]) => cat);
+
+    // Recent journal excerpt
+    let recentJournalExcerpt = null;
+    try {
+      const readings = JSON.parse(localStorage.getItem('df_df_readings') || '[]');
+      const withJournal = readings.filter(r => r.journal);
+      if (withJournal.length > 0) {
+        recentJournalExcerpt = withJournal[withJournal.length - 1].journal.slice(0, 200);
+      }
+    } catch {}
+
+    return {
+      activeProbeIntention,
+      activeProbeAction,
+      lastReadingCards,
+      recentPatterns,
+      topEventCategories,
+      recentJournalExcerpt,
+      fieldPolarity: field?.polarity || null,
+      fieldResonance: field?.resonance || null,
+      fieldMagnitude: field?.magnitude || null,
+    };
+  }, [probeHistory, events, patterns.patterns, field]);
+
+  const momentum = calculateMomentum(probeHistory, events, dayScore);
+
+  const pc = (field?.polarity === "positive" || !field) ? "var(--df-accent)" : "var(--df-negative)";
+  // Raw hex values needed for opacity suffixes and canvas rendering
+  const pcHex = (field?.polarity === "positive" || !field) ? "#00e5c8" : "#ff3c50";
+  const pColors = { positive: "var(--df-accent)", negative: "var(--df-negative)", neutral: "var(--df-purple)" };
+  const pColorsHex = { positive: "#00e5c8", negative: "#ff3c50", neutral: "#7a7aff" };
 
   const navItems = [
     { id: "field", label: "SCAN", icon: "\u25C9" },
-    { id: "probe", label: "PROBE", icon: "\u27D0" },
     { id: "arcana", label: "ARCANA", icon: "\u2727" },
-    { id: "log", label: "LOG", icon: "\u25C8" },
-    { id: "decide", label: "DECIDE", icon: "\u27C1" },
     { id: "config", label: "SETUP", icon: "\u2699" },
   ];
 
-  if (!loaded) return <div style={{ background: "#0a0a12", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#333", fontFamily: "monospace" }}>Loading...</div>;
+  if (!loaded) return <div style={{ background: "var(--df-bg)", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--df-text-ghost)", fontFamily: "'JetBrains Mono','Fira Code','Courier New',monospace" }}>Loading...</div>;
 
   return (
-    <div style={{ background: "#0a0a12", minHeight: "100vh", color: "#c8c8d8", fontFamily: "'JetBrains Mono','Fira Code','Courier New',monospace" }}>
+    <div data-theme={theme} style={{ background: "var(--df-bg)", minHeight: "100vh", color: "var(--df-text)", fontFamily: "'JetBrains Mono','Fira Code','Courier New',monospace", transition: "background 0.3s, color 0.3s" }}>
       <div style={{ maxWidth: 600, margin: "0 auto", padding: "12px 14px 80px" }}>
 
         {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 2 }}>
-            <svg width="24" height="24" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="120" cy="120" r="90" fill="none" stroke="#1a3a4a" strokeWidth="2" strokeDasharray="4 10"/>
-              <circle cx="120" cy="120" r="55" fill="none" stroke="#0d2a35" strokeWidth="2"/>
-              <path d="M120 120 L120 50" stroke="#00e5c8" strokeWidth="6" strokeLinecap="round"/>
-              <path d="M120 50 Q132 68 126 80" stroke="#00e5c8" strokeWidth="4.5" fill="none" strokeLinecap="round"/>
-              <circle cx="120" cy="120" r="8" fill="#00e5c8" opacity="0.5"/>
-              <circle cx="120" cy="120" r="5" fill="#00e5c8"/>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 2, position: "relative" }}>
+            {/* Theme toggle — right-aligned */}
+            <button onClick={toggleTheme} style={{
+              position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)",
+              display: "flex", alignItems: "center", gap: 4,
+              background: "transparent", border: `1px solid ${GOLD_HEX}30`,
+              borderRadius: 14, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit",
+              fontSize: 9, color: "var(--df-text-dim)", letterSpacing: 1, transition: "all 0.2s",
+            }}>
+              <span style={{ fontSize: 12 }}>{isDark ? "\u263D" : "\u2600"}</span>
+              {isDark ? "DARK" : "LIGHT"}
+            </button>
+            <svg width="32" height="32" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+              {/* Outer ring */}
+              <circle cx="120" cy="120" r="105" fill="none" stroke={isDark ? "#C9A84C50" : "#8a7030"} strokeWidth="4"/>
+              {/* Tick marks */}
+              {[0, 90, 180, 270].map(a => {
+                const rad = (a * Math.PI) / 180;
+                const x1 = 120 + Math.cos(rad) * 95, y1 = 120 - Math.sin(rad) * 95;
+                const x2 = 120 + Math.cos(rad) * 105, y2 = 120 - Math.sin(rad) * 105;
+                return <line key={a} x1={x1} y1={y1} x2={x2} y2={y2} stroke={isDark ? "#C9A84C70" : "#7a6525"} strokeWidth="5" strokeLinecap="round"/>;
+              })}
+              {/* Inner ring */}
+              <circle cx="120" cy="120" r="70" fill="none" stroke={isDark ? "#C9A84C35" : "#a08a45"} strokeWidth="3"/>
+              {/* Needle */}
+              <path d="M120 120 L120 38" stroke={isDark ? "#00e5c8" : "#0a7a6e"} strokeWidth="8" strokeLinecap="round"/>
+              <path d="M120 38 L130 60 M120 38 L110 60" stroke={isDark ? "#00e5c8" : "#0a7a6e"} strokeWidth="5" fill="none" strokeLinecap="round"/>
+              {/* Center dot */}
+              <circle cx="120" cy="120" r="10" fill={isDark ? "#C9A84C" : "#8a7030"} opacity="0.6"/>
+              <circle cx="120" cy="120" r="6" fill={isDark ? "#00e5c8" : "#0a7a6e"}/>
             </svg>
-            <h1 style={{ fontSize: 16, fontWeight: 300, letterSpacing: 4, color: "#d0d0e8", margin: 0 }}>
+            <h1 style={{ fontSize: 16, fontWeight: 300, letterSpacing: 4, color: "var(--df-text-bright)", margin: 0 }}>
               DRIFTFIELD
             </h1>
           </div>
-          <div style={{ fontSize: 7, color: "#00e5c8", letterSpacing: 3, opacity: 0.4 }}>
-            ENTROPY-DRIVEN SERENDIPITY
+          <div style={{ fontSize: 9, color: "var(--df-gold)", letterSpacing: 3, opacity: isDark ? 0.6 : 0.85, textAlign: "center" }}>
+            SERENDIPITY ENGINE
           </div>
           {(() => {
             const allDates = new Set();
@@ -565,22 +730,27 @@ export default function DriftfieldApp() {
               else break;
             }
             if (streak < 2) return null;
-            return <div style={{ fontSize: 8, color: "#ffd93d80", marginTop: 2, letterSpacing: 1 }}>● {streak}-DAY STREAK</div>;
+            return <div style={{ fontSize: 9, color: "var(--df-warning)", opacity: 0.5, marginTop: 2, letterSpacing: 1, textAlign: "center" }}>{"\u25CF"} {streak}-DAY STREAK</div>;
           })()}
+          {momentum > 0 && (
+            <div style={{ fontSize: 9, color: "var(--df-text-dim)", marginTop: 2, letterSpacing: 1, opacity: 0.6, textAlign: "center" }}>
+              {"\u25C8"} {momentum} MOMENTUM
+            </div>
+          )}
           {/* Auth button */}
           {supabaseConfigured && (
-            <div style={{ marginTop: 6 }}>
+            <div style={{ marginTop: 6, textAlign: "center" }}>
               {isAuthenticated ? (
                 <button onClick={signOut} style={{
-                  background: "transparent", border: "1px solid #2a2a45", borderRadius: 4,
-                  color: "#555", fontSize: 8, padding: "3px 10px", cursor: "pointer",
-                  fontFamily: "monospace", letterSpacing: 1,
+                  background: "transparent", border: `1px solid ${GOLD_HEX}25`, borderRadius: 4,
+                  color: "var(--df-text-dim)", fontSize: 9, padding: "4px 12px", cursor: "pointer",
+                  fontFamily: "inherit", letterSpacing: 1,
                 }}>SIGN OUT</button>
               ) : (
                 <button onClick={() => setShowAuth(true)} style={{
-                  background: `${pc}12`, border: `1px solid ${pc}40`, borderRadius: 4,
-                  color: pc, fontSize: 8, padding: "3px 10px", cursor: "pointer",
-                  fontFamily: "monospace", letterSpacing: 1,
+                  background: `${pcHex}12`, border: `1px solid ${pcHex}40`, borderRadius: 4,
+                  color: pc, fontSize: 9, padding: "4px 12px", cursor: "pointer",
+                  fontFamily: "inherit", letterSpacing: 1,
                 }}>TUNE IN</button>
               )}
             </div>
@@ -592,9 +762,9 @@ export default function DriftfieldApp() {
           <>
             {/* Onboarding hint */}
             {!birthDate && events.length === 0 && probeHistory.length === 0 && (
-              <div style={{ padding: "12px 14px", marginBottom: 12, background: "#12121e", borderRadius: 5, border: "1px solid #1a1a2e" }}>
-                <div style={{ fontSize: 11, color: "#999", lineHeight: 1.6 }}>
-                  Welcome to Driftfield. Start by entering your birth date in <span style={{ color: pc, cursor: "pointer" }} onClick={() => setView("config")}>Setup</span>, then scan the field or fire a probe.
+              <div style={{ padding: "14px 16px", marginBottom: 12, background: "var(--df-surface)", borderRadius: 6, border: `1.5px solid ${GOLD_HEX}30` }}>
+                <div style={{ fontSize: 11, color: "var(--df-text-secondary)", lineHeight: 1.7 }}>
+                  Welcome to Driftfield. Start by entering your birth date in <span style={{ color: pc, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }} onClick={() => setView("config")}>Setup</span>, then scan the field or fire a probe.
                 </div>
               </div>
             )}
@@ -604,45 +774,293 @@ export default function DriftfieldApp() {
               bearing={entropy ? parseFloat(entropy.direction.angle.toFixed(1)) : 0}
               magnitude={field?.magnitude || 0}
               polarity={field?.polarity || "positive"}
+              isDark={isDark}
             />
 
             <div style={{ textAlign: "center", marginTop: -4, marginBottom: 12 }}>
               <div style={{ fontSize: 32, fontWeight: 200, color: pc }}>
-                {field ? (field.polarity === "positive" ? "+" : "−") + (field.magnitude * 100).toFixed(0) : "—"}
+                {field ? (field.polarity === "positive" ? "+" : "\u2212") + (field.magnitude * 100).toFixed(0) : "\u2014"}
               </div>
-              <div style={{ fontSize: 8, color: "#555", letterSpacing: 2 }}>COMPOSITE FIELD STRENGTH</div>
+              <div style={{ fontSize: 9, color: "var(--df-gold)", opacity: 0.5, letterSpacing: 2 }}>COMPOSITE FIELD STRENGTH</div>
               {field?.resonance > 0.75 && (
-                <div style={{ fontSize: 9, color: "#ffd93d", marginTop: 4, letterSpacing: 1 }}>
-                  ◈ HIGH RESONANCE — optimal probe window
-                </div>
+                <>
+                  <div style={{ fontSize: 10, color: "var(--df-warning)", marginTop: 4, letterSpacing: 1 }}>
+                    {"\u25C8"} HIGH RESONANCE — optimal probe window
+                  </div>
+                  <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 6 }}>
+                    <Btn onClick={() => setShowProbeExpanded(true)} color="var(--df-warning)" colorHex="#ffd93d" small>FIRE PROBE</Btn>
+                    <Btn onClick={() => setView("arcana")} color="var(--df-warning)" colorHex="#ffd93d" small>DRAW CARDS</Btn>
+                  </div>
+                </>
               )}
               {field?.resonance > 0.6 && field?.resonance <= 0.75 && (
-                <div style={{ fontSize: 9, color: "#ffd93d80", marginTop: 4, letterSpacing: 1 }}>
-                  ◈ RISING — good conditions
+                <div style={{ fontSize: 10, color: "var(--df-warning)", opacity: 0.5, marginTop: 4, letterSpacing: 1 }}>
+                  {"\u25C8"} RISING — good conditions
                 </div>
               )}
             </div>
 
             {/* Scan controls */}
             <div style={{ textAlign: "center", marginBottom: 14 }}>
-              <Btn onClick={scanning ? stopScan : startScan} color={pc}>
+              <Btn onClick={scanning ? stopScan : startScan} color={pc} colorHex={pcHex}>
                 {scanning ? "◉ SCANNING LIVE" : "◈ SCAN FIELD"}
               </Btn>
             </div>
 
+            {/* ── Probe (collapsible) ── */}
+            <div style={{ background: "var(--df-surface)", border: `1.5px solid var(--df-border-warm)`, borderRadius: 8, marginBottom: 12, overflow: "hidden" }}>
+              <button onClick={() => setShowProbeExpanded(!showProbeExpanded)} style={{
+                width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "12px 14px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit",
+              }}>
+                <span style={{ fontSize: 10, letterSpacing: 2, color: "var(--df-gold)", opacity: 0.7 }}>
+                  {probe ? `\u27D0 PROBE — ${probe.action.label.toUpperCase()}` : "\u27D0 ENTROPY PROBE"}
+                </span>
+                <span style={{ fontSize: 10, color: "var(--df-text-ghost)", transform: showProbeExpanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>{"\u25BC"}</span>
+              </button>
+              {showProbeExpanded && (
+                <div style={{ padding: "0 14px 14px" }}>
+                  {/* Mode toggle */}
+                  <div style={{ display: "flex", justifyContent: "center", gap: 4, marginBottom: 12 }}>
+                    {[
+                      { id: "single", label: "\u25C9 SINGLE" },
+                      { id: "compare", label: "\u27C1 COMPARE" },
+                    ].map(m => (
+                      <button key={m.id} onClick={() => setProbeMode(m.id)} style={{
+                        padding: "6px 16px", borderRadius: 4, fontSize: 10, letterSpacing: 1,
+                        background: probeMode === m.id ? `${GOLD_HEX}15` : "transparent",
+                        border: `1.5px solid ${probeMode === m.id ? GOLD_HEX + "50" : "var(--df-border-input)"}`,
+                        color: probeMode === m.id ? "var(--df-gold)" : "var(--df-text-dim)",
+                        cursor: "pointer", fontFamily: "inherit",
+                      }}>{m.label}</button>
+                    ))}
+                  </div>
+
+                  {probeMode === "single" ? (
+                    <>
+                      <div style={{ fontSize: 11, color: "var(--df-text-muted)", marginBottom: 10, lineHeight: 1.7 }}>
+                        Set an intention — the probe reads the entropy field and gives you a direction.
+                      </div>
+                      <textarea
+                        value={intention}
+                        onChange={e => setIntention(e.target.value)}
+                        placeholder="What are you looking for?"
+                        style={{
+                          width: "100%", boxSizing: "border-box", minHeight: 50, resize: "vertical",
+                          background: "var(--df-surface-alt)", border: `1.5px solid ${GOLD_HEX}20`, borderRadius: 5,
+                          color: "var(--df-text)", padding: "10px 12px", fontSize: 11, fontFamily: "inherit",
+                          marginBottom: 10,
+                        }}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 11, color: "var(--df-text-muted)", marginBottom: 10, lineHeight: 1.7 }}>
+                        Compare two options — which opens more possibility?
+                      </div>
+                      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                        {[
+                          { label: "OPTION A", opt: optA, set: setOptA, color: "#45b7d1" },
+                          { label: "OPTION B", opt: optB, set: setOptB, color: "#c084fc" },
+                        ].map(({ label, opt, set, color }) => (
+                          <div key={label} style={{ flex: 1, padding: 10, border: `1.5px solid ${GOLD_HEX}25`, borderRadius: 5, background: `${color}05` }}>
+                            <div style={{ fontSize: 9, color, letterSpacing: 1, marginBottom: 6 }}>{label}</div>
+                            <input value={opt.label} onChange={e => set({ ...opt, label: e.target.value })}
+                              placeholder="Describe..."
+                              style={{ width: "100%", boxSizing: "border-box", background: "var(--df-surface-alt)", border: `1px solid ${GOLD_HEX}18`, borderRadius: 4, color: "var(--df-text)", padding: "7px 9px", fontSize: 10, fontFamily: "inherit", marginBottom: 8 }}
+                            />
+                            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                              <Toggle checked={opt.isNovel} onChange={v => set({ ...opt, isNovel: v })} label="New / unfamiliar" />
+                              <Toggle checked={opt.meetsNew} onChange={v => set({ ...opt, meetsNew: v })} label="Meet new people" />
+                              <Toggle checked={opt.opens} onChange={v => set({ ...opt, opens: v })} label="Opens possibilities" />
+                            </div>
+                            <div style={{ marginTop: 6 }}>
+                              <div style={{ fontSize: 9, color: "var(--df-gold)", opacity: 0.5, marginBottom: 3, letterSpacing: 1 }}>GUT</div>
+                              <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                                {["excited", "anxious", "neutral"].map(f => (
+                                  <button key={f} onClick={() => set({ ...opt, gut: f })} style={{
+                                    padding: "3px 8px", borderRadius: 3, fontSize: 9,
+                                    background: opt.gut === f ? `${color}20` : "var(--df-surface-alt)",
+                                    border: `1px solid ${opt.gut === f ? color + "50" : GOLD_HEX + "18"}`,
+                                    color: opt.gut === f ? color : "var(--df-text-dim)", cursor: "pointer", fontFamily: "inherit", textTransform: "capitalize",
+                                  }}>{f}</button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {field?.resonance > 0.7 && (
+                    <div style={{ fontSize: 10, color: "var(--df-warning)", opacity: 0.5, marginBottom: 8, textAlign: "center" }}>
+                      {"\u25C8"} Field resonance is high
+                    </div>
+                  )}
+                  <Btn onClick={() => {
+                    if (supabaseConfigured && !isAuthenticated) { setShowAuth(true); return; }
+                    if (probeMode === "compare") {
+                      setIntention(`${optA.label || "A"} vs ${optB.label || "B"}`);
+                      setDecResult(evaluateDecision(optA, optB, field ? { polarity: field.polarity === "positive" ? field.magnitude : -field.magnitude, resonance: field.resonance } : null));
+                    }
+                    fireProbe();
+                  }} color={pc} colorHex={pcHex} full>{"\u27D0"} FIRE PROBE</Btn>
+                </div>
+              )}
+            </div>
+
+            {/* Probe result */}
+            {probe && (
+              <>
+                <Section style={{ borderColor: `${pColorsHex[probe.polarity]}25`, boxShadow: `0 0 30px ${pColorsHex[probe.polarity]}08` }}>
+                  <CompassRose bearing={parseFloat(probe.bearing)} magnitude={probe.strength} polarity={probe.polarity} isDark={isDark} />
+                  <div style={{ textAlign: "center", marginTop: 4 }}>
+                    <div style={{ fontSize: 24, marginBottom: 4 }}>{probe.action.icon}</div>
+                    <div style={{ fontSize: 14, color: pColors[probe.polarity], fontWeight: 600, letterSpacing: 2 }}>
+                      {probe.action.label.toUpperCase()}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--df-text-secondary)", marginTop: 4, lineHeight: 1.7, maxWidth: 400, margin: "4px auto 0" }}>
+                      {probe.action.desc}
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${GOLD_HEX}18` }}>
+                    <Stat label="BEARING" value={`${probe.compassDir}`} sub={`${probe.bearing}°`} color={pColors[probe.polarity]} />
+                    <Stat label="POLARITY" value={probe.polarity === "positive" ? "\uFF0B" : "\u2212"} sub={probe.polarity} color={pColors[probe.polarity]} />
+                    <Stat label="SIGNAL" value={`${(probe.strength * 100).toFixed(0)}%`} sub={probe.confidence} color={probe.strength > 0.2 ? "var(--df-warning)" : "var(--df-text-dim)"} />
+                  </div>
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${GOLD_HEX}18` }}>
+                    <div style={{ fontSize: 9, color: "var(--df-gold)", opacity: 0.5, letterSpacing: 1, marginBottom: 4 }}>ENTROPY DETAIL</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 4 }}>
+                      {Object.entries(probe.entropyDetail).map(([k, v]) => (
+                        <div key={k} style={{ textAlign: "center" }}>
+                          <div style={{ fontSize: 10, color: "var(--df-text-secondary)" }}>{v}</div>
+                          <div style={{ fontSize: 9, color: "var(--df-text-faint)" }}>{k.toUpperCase()}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </Section>
+
+                {probe.intention && (
+                  <Section>
+                    <div style={{ fontSize: 10, color: "var(--df-text-dim)", letterSpacing: 1, marginBottom: 4 }}>INTENTION</div>
+                    <div style={{ fontSize: 11, color: "var(--df-text-secondary)", fontStyle: "italic" }}>"{probe.intention}"</div>
+                  </Section>
+                )}
+
+                <div style={{ textAlign: "center", marginBottom: 12, display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
+                  <Btn onClick={() => shareProbeCard(probe)} color={pColors[probe.polarity]} colorHex={pColorsHex[probe.polarity]} small>
+                    SHARE PROBE
+                  </Btn>
+                  {probe.followed ? (
+                    <Btn color={pColors[probe.polarity]} colorHex={pColorsHex[probe.polarity]} small dim>{"\u2713"} DID IT</Btn>
+                  ) : (
+                    <Btn onClick={() => markProbeFollowed(probe.timestamp)} color="#ffd93d" small>
+                      DID IT
+                    </Btn>
+                  )}
+                  <Btn onClick={() => {
+                    setArcanaInitialQuestion(probe.intention || probe.action.label);
+                    setView("arcana");
+                  }} color="var(--df-gold)" colorHex="#C9A84C" small>DRAW A CARD ON THIS</Btn>
+                </div>
+              </>
+            )}
+
+            {/* Compare mode decision result */}
+            {probeMode === "compare" && decResult && (
+              <Section>
+                <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+                  {[
+                    { l: optA.label || "A", s: decResult.a.score, c: "#45b7d1" },
+                    { l: optB.label || "B", s: decResult.b.score, c: "#c084fc" },
+                  ].map(x => (
+                    <div key={x.l} style={{ flex: 1, textAlign: "center" }}>
+                      <div style={{ fontSize: 26, fontWeight: 200, color: x.c }}>{x.s}</div>
+                      <div style={{ fontSize: 9, color: "var(--df-text-dim)" }}>{x.l}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ padding: "10px 14px", background: `${pcHex}10`, borderRadius: 6, fontSize: 11, color: "var(--df-text)", lineHeight: 1.6, marginBottom: 10 }}>
+                  {decResult.verdict}
+                </div>
+                {decResult.fieldVerdict && (
+                  <div style={{ padding: "8px 12px", background: `${pcHex}08`, borderRadius: 5, fontSize: 10, color: "var(--df-text-muted)", lineHeight: 1.5, marginBottom: 10, borderLeft: `2px solid ${pcHex}40` }}>
+                    {"\u25C8"} {decResult.fieldVerdict}
+                  </div>
+                )}
+                {[{ l: "A", n: decResult.a.notes, c: "#45b7d1" }, { l: "B", n: decResult.b.notes, c: "#c084fc" }].map(x => (
+                  <div key={x.l} style={{ marginBottom: 6 }}>
+                    <div style={{ fontSize: 9, color: x.c, letterSpacing: 1, marginBottom: 2 }}>OPTION {x.l}</div>
+                    {x.n.map((n, i) => <div key={i} style={{ fontSize: 10, color: "var(--df-text-muted)", padding: "2px 0" }}><span style={{ color: x.c + "60", marginRight: 5 }}>{"\u00B7"}</span>{n}</div>)}
+                  </div>
+                ))}
+              </Section>
+            )}
+
+            {/* Probe history (compact) */}
+            {probeHistory.length > 0 && (
+              <Section title={`PROBE HISTORY \u00B7 ${probeHistory.length}`}>
+                {[...probeHistory].reverse().slice(0, 5).map((p, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: `1px solid ${GOLD_HEX}12`, fontSize: 10 }}>
+                    <div>
+                      <span style={{ color: pColors[p.polarity], marginRight: 6 }}>{p.action.icon}</span>
+                      <span style={{ color: "var(--df-text-secondary)" }}>{p.action.label}</span>
+                      <span style={{ color: "var(--df-text-faint)", marginLeft: 6 }}>{p.compassDir} {p.bearing}°</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {p.followed ? (
+                        <span style={{ fontSize: 9, color: "var(--df-warning)", opacity: 0.5 }}>{"\u2713"}</span>
+                      ) : (
+                        <button onClick={() => markProbeFollowed(p.timestamp)} style={{
+                          background: "transparent", border: `1px solid ${GOLD_HEX}40`, borderRadius: 3,
+                          color: "var(--df-warning)", fontSize: 9, padding: "2px 8px", cursor: "pointer",
+                          fontFamily: "inherit", letterSpacing: 1, opacity: 0.7,
+                        }}>DID IT</button>
+                      )}
+                      <span style={{ color: "var(--df-text-ghost)", fontSize: 9 }}>{new Date(p.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
+                  </div>
+                ))}
+              </Section>
+            )}
+
+            {/* Quick Log */}
+            <Section title="QUICK LOG">
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input value={eventText} onChange={e => setEventText(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && addEvent()}
+                  placeholder="What happened?"
+                  style={{ flex: 1, background: "var(--df-surface-alt)", border: `1.5px solid ${GOLD_HEX}20`, borderRadius: 5, color: "var(--df-text)", padding: "8px 10px", fontSize: 11, fontFamily: "inherit" }}
+                />
+                <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                  {["positive", "negative", "neutral"].map(p => (
+                    <button key={p} onClick={() => setEventPol(p)} style={{
+                      width: 28, height: 28, borderRadius: 4, fontSize: 12,
+                      background: eventPol === p ? `${pColorsHex[p]}20` : "var(--df-surface-alt)",
+                      border: `1.5px solid ${eventPol === p ? pColorsHex[p] + "50" : GOLD_HEX + "20"}`,
+                      color: eventPol === p ? pColors[p] : "var(--df-text-dim)", cursor: "pointer", fontFamily: "inherit",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>{p === "positive" ? "\uFF0B" : p === "negative" ? "\u2212" : "\u25CB"}</button>
+                  ))}
+                </div>
+                <Btn onClick={addEvent} color={pc} colorHex={pcHex} small>LOG</Btn>
+              </div>
+            </Section>
+
             {/* Signal readout */}
             {entropy && (
               <Section title="SIGNAL ANALYSIS">
-                <div style={{ fontSize: 10, color: "#888", marginBottom: 8, lineHeight: 1.5 }}>
-                  {entropy.anomalyScore > 0.3 ? "Strong signal detected — the noise is deviating from pure randomness." :
-                   entropy.anomalyScore > 0.15 ? "Moderate signal — slight deviations from baseline randomness." :
-                   "Baseline — the field is close to pure randomness right now."}
+                <div style={{ fontSize: 11, color: "var(--df-text-secondary)", marginBottom: 8, lineHeight: 1.6 }}>
+                  {entropy.anomalyScore > 0.3 ? "Strong signal detected \u2014 the noise is deviating from pure randomness." :
+                   entropy.anomalyScore > 0.15 ? "Moderate signal \u2014 slight deviations from baseline randomness." :
+                   "Baseline \u2014 the field is close to pure randomness right now."}
                 </div>
-                <EntropyVis data={entropy.rawData} polarity={field?.polarity} />
+                <EntropyVis data={entropy.rawData} polarity={field?.polarity} isDark={isDark} />
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 10 }}>
                   <Stat label="ENTROPY" value={entropy.shannon.toFixed(3)} sub="/ 8.000 bits" color={pc} />
                   <Stat label="DEVIATION" value={entropy.chi.normalized.toFixed(3)} sub="from expected" color={pc} />
-                  <Stat label="ANOMALY" value={(entropy.anomalyScore * 100).toFixed(1) + "%"} sub={entropy.anomalyScore > 0.2 ? "SIGNAL" : "baseline"} color={entropy.anomalyScore > 0.2 ? "#ffd93d" : pc} />
+                  <Stat label="ANOMALY" value={(entropy.anomalyScore * 100).toFixed(1) + "%"} sub={entropy.anomalyScore > 0.2 ? "SIGNAL" : "baseline"} color={entropy.anomalyScore > 0.2 ? "var(--df-warning)" : pc} />
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 6 }}>
                   <Stat label="CORRELATION" value={entropy.corr.toFixed(4)} sub="serial" />
@@ -654,34 +1072,34 @@ export default function DriftfieldApp() {
 
             {/* Astro layer */}
             {field && (
-              <Section title={`CYCLE LAYER${field.sign ? " · " + field.sign.symbol + " " + field.sign.name : ""}`}>
+              <Section title={`CYCLE LAYER${field.sign ? " \u00B7 " + field.sign.symbol + " " + field.sign.name : ""}`}>
                 {/* Lunar */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                   <div>
                     <span style={{ fontSize: 20, marginRight: 8 }}>{field.lunar.symbol}</span>
-                    <span style={{ fontSize: 11, color: "#bbb" }}>{field.lunar.name}</span>
-                    <span style={{ fontSize: 9, color: "#555", marginLeft: 6 }}>Day {field.lunar.daysInCycle}</span>
+                    <span style={{ fontSize: 11, color: "var(--df-text)" }}>{field.lunar.name}</span>
+                    <span style={{ fontSize: 10, color: "var(--df-text-dim)", marginLeft: 6 }}>Day {field.lunar.daysInCycle}</span>
                   </div>
                   <div style={{ fontSize: 11, color: pc }}>{(field.lunar.energy * 100).toFixed(0)}% energy</div>
                 </div>
-                <div style={{ fontSize: 10, color: "#777", marginBottom: 12, lineHeight: 1.5 }}>
+                <div style={{ fontSize: 11, color: "var(--df-text-muted)", marginBottom: 12, lineHeight: 1.6 }}>
                   {field.lunar.quality}
                 </div>
 
                 {/* Temporal gate */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, color: "#bbb" }}>{field.temporal.name}</span>
+                  <span style={{ fontSize: 11, color: "var(--df-text)" }}>{field.temporal.name}</span>
                   <span style={{ fontSize: 11, color: pc }}>{(field.temporal.energy * 100).toFixed(0)}% gate energy</span>
                 </div>
-                <div style={{ fontSize: 10, color: "#777", marginBottom: 12, lineHeight: 1.5 }}>
+                <div style={{ fontSize: 11, color: "var(--df-text-muted)", marginBottom: 12, lineHeight: 1.6 }}>
                   {field.temporal.quality}
                 </div>
 
                 {/* Biorhythm */}
                 {field.bio && (
                   <>
-                    <div style={{ fontSize: 9, color: "#555", letterSpacing: 1, marginBottom: 4 }}>BIORHYTHM · 60-DAY WINDOW</div>
-                    <BioWave bio={field.bio} />
+                    <div style={{ fontSize: 10, color: "var(--df-gold)", opacity: 0.55, letterSpacing: 1, marginBottom: 4 }}>BIORHYTHM · 60-DAY WINDOW</div>
+                    <BioWave bio={field.bio} isDark={isDark} />
                     <div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 6 }}>
                       {[
                         { c: "#ff6b6b", l: "Phys", v: field.bio.physical.value },
@@ -691,8 +1109,8 @@ export default function DriftfieldApp() {
                       ].map(x => (
                         <div key={x.l} style={{ textAlign: "center" }}>
                           <div style={{ width: 6, height: 6, borderRadius: 3, background: x.c, margin: "0 auto 2px" }} />
-                          <div style={{ fontSize: 8, color: "#555" }}>{x.l}</div>
-                          <div style={{ fontSize: 9, color: x.v > 0 ? x.c : "#555" }}>{(x.v * 100).toFixed(0)}%</div>
+                          <div style={{ fontSize: 9, color: "var(--df-text-dim)" }}>{x.l}</div>
+                          <div style={{ fontSize: 10, color: x.v > 0 ? x.c : "var(--df-text-dim)" }}>{(x.v * 100).toFixed(0)}%</div>
                         </div>
                       ))}
                     </div>
@@ -701,49 +1119,67 @@ export default function DriftfieldApp() {
               </Section>
             )}
 
-            {/* Daily surface */}
-            {!daily ? (
-              <Section title="DAILY SURFACE AREA">
-                <div style={{ fontSize: 10, color: "#777", marginBottom: 12 }}>Quick daily check-in — how open were you to the unexpected today?</div>
-                {[
-                  { label: "New or unfamiliar things you did today", val: nov, set: setNov, max: 4 },
-                  { label: "Conversations with acquaintances or strangers", val: wt, set: setWt, max: 3 },
-                  { label: "Conversations with close friends or family", val: st, set: setSt, max: 3 },
-                ].map(({ label, val, set, max }) => (
-                  <div key={label} style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 10, color: "#888", marginBottom: 4 }}>{label}</div>
-                    <div style={{ display: "flex", gap: 5 }}>
-                      {Array.from({ length: max + 1 }, (_, n) => (
-                        <button key={n} onClick={() => set(n)} style={{
-                          width: 32, height: 32, borderRadius: 4, fontSize: 12, fontFamily: "monospace",
-                          background: val === n ? `${pc}20` : "#0a0a16",
-                          border: `1px solid ${val === n ? pc + "50" : "#2a2a45"}`,
-                          color: val === n ? pc : "#555", cursor: "pointer",
-                        }}>{n === max ? `${max}+` : n}</button>
+            {/* Daily surface — collapsible */}
+            <div style={{ background: "var(--df-surface)", border: `1.5px solid var(--df-border-warm)`, borderRadius: 8, marginBottom: 12, overflow: "hidden" }}>
+              <button onClick={() => setShowDailyExpanded(!showDailyExpanded)} style={{
+                width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "12px 14px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit",
+              }}>
+                <span style={{
+                  fontSize: 10, letterSpacing: 2, color: "var(--df-gold)", opacity: 0.7,
+                  ...(!daily && !showDailyExpanded ? { animation: "pulse 2s ease-in-out infinite" } : {}),
+                }}>
+                  {daily ? `\u25C8 SURFACE AREA: ${dayScore.score}/100` : "\u25C8 DAILY CHECK-IN"}
+                </span>
+                <span style={{ fontSize: 10, color: "var(--df-text-ghost)", transform: showDailyExpanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>{"\u25BC"}</span>
+              </button>
+              {showDailyExpanded && (
+                <div style={{ padding: "0 14px 14px" }}>
+                  {!daily ? (
+                    <>
+                      <div style={{ fontSize: 11, color: "var(--df-text-muted)", marginBottom: 12, lineHeight: 1.6 }}>Quick daily check-in {"\u2014"} how open were you to the unexpected today?</div>
+                      {[
+                        { label: "New or unfamiliar things you did today", val: nov, set: setNov, max: 4 },
+                        { label: "Conversations with acquaintances or strangers", val: wt, set: setWt, max: 3 },
+                        { label: "Conversations with close friends or family", val: st, set: setSt, max: 3 },
+                      ].map(({ label, val, set, max }) => (
+                        <div key={label} style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: 11, color: "var(--df-text-secondary)", marginBottom: 4 }}>{label}</div>
+                          <div style={{ display: "flex", gap: 5 }}>
+                            {Array.from({ length: max + 1 }, (_, n) => (
+                              <button key={n} onClick={() => set(n)} style={{
+                                width: 34, height: 34, borderRadius: 5, fontSize: 12, fontFamily: "inherit",
+                                background: val === n ? `${GOLD_HEX}15` : "var(--df-surface-alt)",
+                                border: `1px solid ${val === n ? GOLD_HEX + "50" : "var(--df-border-input)"}`,
+                                color: val === n ? "var(--df-gold)" : "var(--df-text-dim)", cursor: "pointer",
+                              }}>{n === max ? `${max}+` : n}</button>
+                            ))}
+                          </div>
+                        </div>
                       ))}
-                    </div>
-                  </div>
-                ))}
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
-                  <Toggle checked={yes} onChange={setYes} label="Said yes to something unexpected" />
-                  <Toggle checked={noticed} onChange={setNoticed} label="Noticed something unusual" />
-                  <Toggle checked={shared} onChange={setShared} label="Shared an idea publicly" />
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                        <Toggle checked={yes} onChange={setYes} label="Said yes to something unexpected" />
+                        <Toggle checked={noticed} onChange={setNoticed} label="Noticed something unusual" />
+                        <Toggle checked={shared} onChange={setShared} label="Shared an idea publicly" />
+                      </div>
+                      <Btn onClick={submitDaily} color={pc} colorHex={pcHex} full>CALIBRATE</Btn>
+                    </>
+                  ) : (
+                    <>
+                      {dayScore.factors.map((f, i) => (
+                        <div key={i} style={{ fontSize: 10, color: "var(--df-text-secondary)", padding: "3px 0" }}>
+                          <span style={{ color: pc, marginRight: 6 }}>·</span>{f}
+                        </div>
+                      ))}
+                      <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+                        <Btn onClick={() => shareScoreCard(dayScore.score, dayScore.factors)} color={pc} colorHex={pcHex} small>SHARE SCORE</Btn>
+                        <Btn onClick={() => { setDaily(null); setDayScore(null); }} dim small>RECALIBRATE</Btn>
+                      </div>
+                    </>
+                  )}
                 </div>
-                <Btn onClick={submitDaily} color={pc} full>CALIBRATE</Btn>
-              </Section>
-            ) : (
-              <Section title={`SURFACE AREA: ${dayScore.score}/100`}>
-                {dayScore.factors.map((f, i) => (
-                  <div key={i} style={{ fontSize: 10, color: "#888", padding: "3px 0" }}>
-                    <span style={{ color: pc, marginRight: 6 }}>·</span>{f}
-                  </div>
-                ))}
-                <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-                  <Btn onClick={() => shareScoreCard(dayScore.score, dayScore.factors)} color={pc} small>SHARE SCORE</Btn>
-                  <Btn onClick={() => { setDaily(null); setDayScore(null); }} dim small>RECALIBRATE</Btn>
-                </div>
-              </Section>
-            )}
+              )}
+            </div>
 
             {/* Weekly drift report */}
             {(() => {
@@ -770,9 +1206,9 @@ export default function DriftfieldApp() {
                     <Stat label="PEAK DAY" value={topDay?.[0] || "—"} sub={topDay ? `${topDay[1]} activity` : ""} color={pc} />
                   </div>
                   {topPattern && (
-                    <div style={{ padding: "8px 10px", background: `${pc}08`, borderRadius: 4, fontSize: 10, color: "#888", lineHeight: 1.5 }}>
+                    <div style={{ padding: "8px 10px", background: `${GOLD_HEX}08`, borderRadius: 4, fontSize: 10, color: "var(--df-text-secondary)", lineHeight: 1.6, border: `1px solid ${GOLD_HEX}12` }}>
                       <span style={{ color: pc, fontSize: 8, letterSpacing: 1, textTransform: "uppercase" }}>{topPattern.type}</span>
-                      <span style={{ margin: "0 6px", color: "#333" }}>·</span>
+                      <span style={{ margin: "0 6px", color: "var(--df-text-ghost)" }}>{"\u00B7"}</span>
                       {topPattern.label}
                     </div>
                   )}
@@ -812,133 +1248,128 @@ export default function DriftfieldApp() {
                     <Stat label="LINKED OUTCOMES" value={linked.length} sub="events → probes" color={pc} />
                   </div>
                   {Object.entries(byAction).filter(([, v]) => v.followed > 0).map(([label, v]) => (
-                    <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: "1px solid #1a1a2e", fontSize: 9 }}>
-                      <span style={{ color: "#888" }}>{v.icon} {label}</span>
-                      <span style={{ color: "#555" }}>
+                    <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: `1px solid ${GOLD_HEX}12`, fontSize: 10 }}>
+                      <span style={{ color: "var(--df-text-secondary)" }}>{v.icon} {label}</span>
+                      <span style={{ color: "var(--df-text-dim)" }}>
                         {v.followed}/{v.total}
-                        {v.outcomes.positive > 0 && <span style={{ color: "#00e5c8", marginLeft: 6 }}>+{v.outcomes.positive}</span>}
-                        {v.outcomes.negative > 0 && <span style={{ color: "#ff3c50", marginLeft: 4 }}>-{v.outcomes.negative}</span>}
+                        {v.outcomes.positive > 0 && <span style={{ color: "var(--df-accent)", marginLeft: 6 }}>+{v.outcomes.positive}</span>}
+                        {v.outcomes.negative > 0 && <span style={{ color: "var(--df-negative)", marginLeft: 4 }}>-{v.outcomes.negative}</span>}
                       </span>
                     </div>
                   ))}
                 </Section>
               );
             })()}
-          </>
-        )}
 
-        {/* ═══ PROBE TAB ═══ */}
-        {view === "probe" && (
-          <>
-            <Section title="ENTROPY PROBE">
-              <div style={{ fontSize: 10, color: "#777", marginBottom: 12, lineHeight: 1.6 }}>
-                Set an intention — a question or curiosity. The probe reads the entropy field
-                and gives you a direction and an action to follow.
-              </div>
-              <textarea
-                value={intention}
-                onChange={e => setIntention(e.target.value)}
-                placeholder="Set your intention... What are you looking for? What do you want to find?"
-                style={{
-                  width: "100%", boxSizing: "border-box", minHeight: 60, resize: "vertical",
-                  background: "#0a0a16", border: "1px solid #2a2a45", borderRadius: 4,
-                  color: "#c8c8d8", padding: "10px 12px", fontSize: 11, fontFamily: "monospace",
-                  marginBottom: 10,
-                }}
-              />
-              {field?.resonance > 0.7 && (
-                <div style={{ fontSize: 9, color: "#ffd93d80", marginBottom: 8, textAlign: "center" }}>
-                  ◈ Field resonance is high
-                </div>
-              )}
-              <Btn onClick={() => {
-                if (supabaseConfigured && !isAuthenticated) { setShowAuth(true); return; }
-                fireProbe();
-              }} color={pc} full>⟐ FIRE PROBE</Btn>
-            </Section>
+            {/* Activity Feed — merged timeline */}
+            {(() => {
+              const linkedEventIds = new Set();
+              const followedProbes = probeHistory.filter(p => p.followed).slice(-20);
+              const items = [];
 
-            {probe && (
-              <>
-                <Section style={{ borderColor: `${pColors[probe.polarity]}25`, boxShadow: `0 0 30px ${pColors[probe.polarity]}08` }}>
-                  <CompassRose bearing={parseFloat(probe.bearing)} magnitude={probe.strength} polarity={probe.polarity} />
+              followedProbes.forEach(p => {
+                const linkedEvts = events.filter(e => e.linkedProbeId === p.timestamp);
+                linkedEvts.forEach(e => linkedEventIds.add(e.id));
+                items.push({ type: "probe", data: p, linkedEvents: linkedEvts, ts: p.timestamp });
+              });
 
-                  <div style={{ textAlign: "center", marginTop: 4 }}>
-                    <div style={{ fontSize: 24, marginBottom: 4 }}>{probe.action.icon}</div>
-                    <div style={{ fontSize: 14, color: pColors[probe.polarity], fontWeight: 600, letterSpacing: 2 }}>
-                      {probe.action.label.toUpperCase()}
-                    </div>
-                    <div style={{ fontSize: 11, color: "#999", marginTop: 4, lineHeight: 1.5, maxWidth: 400, margin: "4px auto 0" }}>
-                      {probe.action.desc}
-                    </div>
-                  </div>
+              events.filter(e => !linkedEventIds.has(e.id)).forEach(e => {
+                items.push({ type: "event", data: e, ts: e.timestamp });
+              });
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 14, paddingTop: 12, borderTop: "1px solid #1a1a2e" }}>
-                    <Stat label="BEARING" value={`${probe.compassDir}`} sub={`${probe.bearing}°`} color={pColors[probe.polarity]} />
-                    <Stat label="POLARITY" value={probe.polarity === "positive" ? "＋" : "−"} sub={probe.polarity} color={pColors[probe.polarity]} />
-                    <Stat label="SIGNAL" value={`${(probe.strength * 100).toFixed(0)}%`} sub={probe.confidence} color={probe.strength > 0.2 ? "#ffd93d" : "#555"} />
-                  </div>
+              try {
+                const readings = JSON.parse(localStorage.getItem("df_df_readings") || "[]");
+                readings.slice(-20).forEach(r => {
+                  items.push({ type: "reading", data: r, ts: r.timestamp });
+                });
+              } catch {}
 
-                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1a1a2e" }}>
-                    <div style={{ fontSize: 8, color: "#444", letterSpacing: 1, marginBottom: 4 }}>ENTROPY DETAIL</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 4 }}>
-                      {Object.entries(probe.entropyDetail).map(([k, v]) => (
-                        <div key={k} style={{ textAlign: "center" }}>
-                          <div style={{ fontSize: 10, color: "#999" }}>{v}</div>
-                          <div style={{ fontSize: 7, color: "#444" }}>{k.toUpperCase()}</div>
+              items.sort((a, b) => b.ts - a.ts);
+              const display = items.slice(0, 15);
+
+              if (display.length === 0) return null;
+
+              return (
+                <>
+                  <div style={{ fontSize: 10, color: "var(--df-gold)", opacity: 0.6, letterSpacing: 1, marginBottom: 6 }}>ACTIVITY FEED</div>
+                  {display.map((item, i) => {
+                    if (item.type === "reading") {
+                      return (
+                        <div key={`r-${item.data.readingId || i}`} style={{
+                          padding: "7px 10px", marginBottom: 4,
+                          borderLeft: "2px solid #C9A84C35",
+                          background: "var(--df-surface)", borderRadius: "0 5px 5px 0",
+                        }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "var(--df-text-faint)", marginBottom: 1 }}>
+                            <span style={{ color: "var(--df-gold)" }}>{"\u2727"} {item.data.spreadName}</span>
+                            <span>{new Date(item.data.timestamp).toLocaleDateString()} {new Date(item.data.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                          </div>
+                          <div style={{ fontSize: 10, color: "var(--df-text-secondary)" }}>
+                            {item.data.cards.map(c => c.name).join(" \u00B7 ")}
+                          </div>
+                          {item.data.question && <div style={{ fontSize: 10, color: "var(--df-text-muted)", fontStyle: "italic", marginTop: 2 }}>"{item.data.question}"</div>}
+                          {item.data.isCharged && <div style={{ fontSize: 9, color: "var(--df-gold)", marginTop: 2 }}>{"\u26A1"} Charged reading</div>}
                         </div>
-                      ))}
+                      );
+                    }
+                    if (item.type === "probe") {
+                      return (
+                        <div key={`p-${item.data.timestamp}`} style={{ marginBottom: 6 }}>
+                          <div style={{
+                            padding: "6px 10px", background: "var(--df-surface)", borderRadius: "5px",
+                            borderLeft: `2px solid ${pColorsHex[item.data.polarity]}35`,
+                          }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "var(--df-text-faint)", marginBottom: 2 }}>
+                              <span style={{ color: pColors[item.data.polarity] }}>
+                                {item.data.action.icon} {item.data.action.label} — {item.data.compassDir} {item.data.bearing}°
+                              </span>
+                              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                <span style={{ color: "var(--df-warning)", opacity: 0.38 }}>{"\u2713"}</span>
+                                {new Date(item.data.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </div>
+                            {item.data.intention && (
+                              <div style={{ fontSize: 10, color: "var(--df-text-muted)", fontStyle: "italic" }}>"{item.data.intention}"</div>
+                            )}
+                          </div>
+                          {item.linkedEvents.map(evt => (
+                            <div key={evt.id} style={{
+                              marginLeft: 16, padding: "5px 10px", marginTop: 2,
+                              borderLeft: `2px solid ${pColorsHex[evt.polarity]}25`,
+                              background: "var(--df-surface-alt)", borderRadius: "0 4px 4px 0",
+                            }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "var(--df-text-faint)" }}>
+                                <span style={{ color: pColors[evt.polarity] }}>{evt.polarity === "positive" ? "\uFF0B" : evt.polarity === "negative" ? "\u2212" : "\u25CB"}{evt.category ? ` \u00B7 ${evt.category}` : ""}</span>
+                                <span>{new Date(evt.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                              </div>
+                              <div style={{ fontSize: 10, color: "var(--df-text-secondary)" }}>{evt.text}</div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={`e-${item.data.id}`} style={{
+                        padding: "7px 10px", marginBottom: 4,
+                        borderLeft: `2px solid ${pColorsHex[item.data.polarity]}35`,
+                        background: "var(--df-surface)", borderRadius: "0 5px 5px 0",
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "var(--df-text-faint)", marginBottom: 1 }}>
+                          <span style={{ color: pColors[item.data.polarity] }}>{item.data.polarity === "positive" ? "\uFF0B" : item.data.polarity === "negative" ? "\u2212" : "\u25CB"}{item.data.category ? ` \u00B7 ${item.data.category}` : ""}</span>
+                          <span>{new Date(item.data.timestamp).toLocaleDateString()} {new Date(item.data.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                        </div>
+                        <div style={{ fontSize: 10, color: "var(--df-text-secondary)" }}>{item.data.text}</div>
+                      </div>
+                    );
+                  })}
+                  {events.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <Btn onClick={() => { setEvents([]); save("df_events", []); }} dim small>CLEAR EVENTS</Btn>
                     </div>
-                  </div>
-                </Section>
-
-                {probe.intention && (
-                  <Section>
-                    <div style={{ fontSize: 9, color: "#555", letterSpacing: 1, marginBottom: 4 }}>INTENTION</div>
-                    <div style={{ fontSize: 11, color: "#888", fontStyle: "italic" }}>"{probe.intention}"</div>
-                  </Section>
-                )}
-
-                <div style={{ textAlign: "center", marginBottom: 12, display: "flex", justifyContent: "center", gap: 8 }}>
-                  <Btn onClick={() => shareProbeCard(probe)} color={pColors[probe.polarity]} small>
-                    SHARE PROBE
-                  </Btn>
-                  {probe.followed ? (
-                    <Btn color={pColors[probe.polarity]} small dim>✓ DID IT</Btn>
-                  ) : (
-                    <Btn onClick={() => markProbeFollowed(probe.timestamp)} color="#ffd93d" small>
-                      DID IT
-                    </Btn>
                   )}
-                </div>
-              </>
-            )}
-
-            {/* Probe history */}
-            {probeHistory.length > 0 && (
-              <Section title={`PROBE HISTORY · ${probeHistory.length}`}>
-                {[...probeHistory].reverse().slice(0, 10).map((p, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: "1px solid #1a1a2e", fontSize: 10 }}>
-                    <div>
-                      <span style={{ color: pColors[p.polarity], marginRight: 6 }}>{p.action.icon}</span>
-                      <span style={{ color: "#888" }}>{p.action.label}</span>
-                      <span style={{ color: "#444", marginLeft: 6 }}>{p.compassDir} {p.bearing}°</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      {p.followed ? (
-                        <span style={{ fontSize: 8, color: "#ffd93d60" }}>✓</span>
-                      ) : (
-                        <button onClick={() => markProbeFollowed(p.timestamp)} style={{
-                          background: "transparent", border: "1px solid #ffd93d30", borderRadius: 3,
-                          color: "#ffd93d", fontSize: 7, padding: "2px 6px", cursor: "pointer",
-                          fontFamily: "monospace", letterSpacing: 1,
-                        }}>DID IT</button>
-                      )}
-                      <span style={{ color: "#333", fontSize: 8 }}>{new Date(p.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                    </div>
-                  </div>
-                ))}
-              </Section>
-            )}
+                </>
+              );
+            })()}
           </>
         )}
 
@@ -956,352 +1387,104 @@ export default function DriftfieldApp() {
                 isCharged: (entropy.anomalyScore ?? 0) > 2,
                 entropy: { shannon: entropy.shannon ?? 0 },
               } : null}
+              initialQuestion={arcanaInitialQuestion}
+              onInitialQuestionConsumed={() => setArcanaInitialQuestion(null)}
+              sessionContext={sessionContext}
+              onReadingSaved={(summary) => {
+                setLastSavedReading(summary);
+                // Auto-log reading as event and navigate to Scan
+                const readingText = `Reading: ${summary.cards?.map(c => c.name).join(", ") || summary.spreadName}`;
+                setEvents(prev => [...prev, { text: readingText, polarity: "neutral", category: "reading", linkedProbeId: null, timestamp: Date.now(), id: Date.now() }]);
+              }}
             />
           </ArcanaErrorBoundary>
         )}
 
-        {/* ═══ LOG TAB ═══ */}
-        {view === "log" && (
-          <>
-            <Section title="LOG SYNCHRONICITY">
-              <div style={{ fontSize: 10, color: "#666", marginBottom: 10 }}>
-                Coincidences, unexpected encounters, repeating numbers, meaningful accidents, déjà vu.
-              </div>
-              <input value={eventText} onChange={e => setEventText(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && addEvent()}
-                placeholder="What happened?"
-                style={{ width: "100%", boxSizing: "border-box", background: "#0a0a16", border: "1px solid #2a2a45", borderRadius: 4, color: "#c8c8d8", padding: "9px 11px", fontSize: 11, fontFamily: "monospace", marginBottom: 8 }}
-              />
-              <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-                <div>
-                  <div style={{ fontSize: 8, color: "#444", marginBottom: 3 }}>POLARITY</div>
-                  <div style={{ display: "flex", gap: 3 }}>
-                    {["positive", "negative", "neutral"].map(p => (
-                      <button key={p} onClick={() => setEventPol(p)} style={{
-                        padding: "4px 10px", borderRadius: 3, fontSize: 9,
-                        background: eventPol === p ? `${pColors[p]}20` : "#0a0a16",
-                        border: `1px solid ${eventPol === p ? pColors[p] + "50" : "#2a2a45"}`,
-                        color: eventPol === p ? pColors[p] : "#555", cursor: "pointer", fontFamily: "monospace",
-                      }}>{p === "positive" ? "＋" : p === "negative" ? "−" : "○"}</button>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ flex: 1, minWidth: 100 }}>
-                  <div style={{ fontSize: 8, color: "#444", marginBottom: 3 }}>CATEGORY</div>
-                  <input value={eventCat} onChange={e => setEventCat(e.target.value)}
-                    placeholder="work, social, creative..."
-                    style={{ width: "100%", boxSizing: "border-box", background: "#0a0a16", border: "1px solid #2a2a45", borderRadius: 3, color: "#c8c8d8", padding: "4px 8px", fontSize: 9, fontFamily: "monospace" }}
-                  />
-                </div>
-              </div>
-              {/* Link to recent probe */}
-              {(() => {
-                const recent = probeHistory.filter(p => Date.now() - p.timestamp < 86400000);
-                if (recent.length === 0) return null;
-                return (
-                  <div style={{ marginBottom: 8 }}>
-                    <div style={{ fontSize: 8, color: "#444", marginBottom: 4, letterSpacing: 1 }}>LINK TO PROBE (optional)</div>
-                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                      {recent.slice(-5).reverse().map(p => (
-                        <button key={p.timestamp} onClick={() => setLinkedProbeId(linkedProbeId === p.timestamp ? null : p.timestamp)} style={{
-                          padding: "3px 8px", borderRadius: 3, fontSize: 8,
-                          background: linkedProbeId === p.timestamp ? `${pColors[p.polarity]}20` : "#0a0a16",
-                          border: `1px solid ${linkedProbeId === p.timestamp ? pColors[p.polarity] + "50" : "#2a2a45"}`,
-                          color: linkedProbeId === p.timestamp ? pColors[p.polarity] : "#555",
-                          cursor: "pointer", fontFamily: "monospace",
-                        }}>
-                          {p.action.icon} {p.action.label} · {new Date(p.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
-              <Btn onClick={addEvent} color={pc} full>LOG</Btn>
-            </Section>
-
-            {/* Patterns */}
-            {patterns.patterns.length > 0 && (
-              <Section title="DETECTED PATTERNS">
-                {patterns.patterns.map((p, i) => (
-                  <div key={i} style={{ padding: "8px 0", borderBottom: i < patterns.patterns.length - 1 ? "1px solid #1a1a2e" : "none" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 8, color: pc, letterSpacing: 1, textTransform: "uppercase" }}>{p.type}</span>
-                      <span style={{ fontSize: 8, color: "#444" }}>{(p.strength * 100).toFixed(0)}%</span>
-                    </div>
-                    <div style={{ fontSize: 11, color: "#bbb", marginTop: 2 }}>{p.label}</div>
-                    <div style={{ fontSize: 10, color: "#777", marginTop: 2, lineHeight: 1.4 }}>{p.suggestion}</div>
-                  </div>
-                ))}
-              </Section>
-            )}
-
-            {/* Drift Timeline */}
-            <div style={{ fontSize: 9, color: "#444", letterSpacing: 1, marginBottom: 6 }}>DRIFT TIMELINE</div>
-            {events.length === 0 && probeHistory.filter(p => p.followed).length === 0 ? (
-              <div style={{ color: "#2a2a40", fontSize: 10, textAlign: "center", padding: 24 }}>No events yet. Start noticing.</div>
-            ) : (() => {
-              // Build merged timeline: followed probes + all events
-              const linkedEventIds = new Set();
-              const followedProbes = probeHistory.filter(p => p.followed).slice(-20);
-              const items = [];
-
-              // Add probes with their linked events nested
-              followedProbes.forEach(p => {
-                const linkedEvts = events.filter(e => e.linkedProbeId === p.timestamp);
-                linkedEvts.forEach(e => linkedEventIds.add(e.id));
-                items.push({ type: "probe", data: p, linkedEvents: linkedEvts, ts: p.timestamp });
-              });
-
-              // Add unlinked events
-              events.filter(e => !linkedEventIds.has(e.id)).forEach(e => {
-                items.push({ type: "event", data: e, ts: e.timestamp });
-              });
-
-              // Add arcana readings from localStorage
-              try {
-                const readings = JSON.parse(localStorage.getItem("df_df_readings") || "[]");
-                readings.slice(-20).forEach(r => {
-                  items.push({ type: "reading", data: r, ts: r.timestamp });
-                });
-              } catch {}
-
-
-              items.sort((a, b) => b.ts - a.ts);
-
-              return items.slice(0, 25).map((item, i) => {
-                if (item.type === "reading") {
-                  return (
-                    <div key={`r-${item.data.readingId}`} style={{
-                      padding: "7px 10px", marginBottom: 4,
-                      borderLeft: "2px solid #C9A84C35",
-                      background: "#12121e", borderRadius: "0 5px 5px 0",
-                    }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: "#444", marginBottom: 1 }}>
-                        <span style={{ color: "#C9A84C" }}>{"\u2727"} {item.data.spreadName}</span>
-                        <span>{new Date(item.data.timestamp).toLocaleDateString()} {new Date(item.data.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                      </div>
-                      <div style={{ fontSize: 10, color: "#999" }}>
-                        {item.data.cards.map(c => c.name).join(" \u00B7 ")}
-                      </div>
-                      {item.data.question && <div style={{ fontSize: 9, color: "#666", fontStyle: "italic", marginTop: 2 }}>"{item.data.question}"</div>}
-                      {item.data.isCharged && <div style={{ fontSize: 8, color: "#C9A84C", marginTop: 2 }}>{"\u26A1"} Charged reading</div>}
-                    </div>
-                  );
-                }
-                if (item.type === "probe") {
-                  return (
-                    <div key={`p-${item.data.timestamp}`} style={{ marginBottom: 6 }}>
-                      <div style={{
-                        padding: "6px 10px", background: "#12121e", borderRadius: "5px",
-                        borderLeft: `2px solid ${pColors[item.data.polarity]}35`,
-                      }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: "#444", marginBottom: 2 }}>
-                          <span style={{ color: pColors[item.data.polarity] }}>
-                            {item.data.action.icon} {item.data.action.label} — {item.data.compassDir} {item.data.bearing}°
-                          </span>
-                          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                            <span style={{ color: "#ffd93d60" }}>✓</span>
-                            {new Date(item.data.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                          </span>
-                        </div>
-                        {item.data.intention && (
-                          <div style={{ fontSize: 9, color: "#666", fontStyle: "italic" }}>"{item.data.intention}"</div>
-                        )}
-                      </div>
-                      {item.linkedEvents.map(evt => (
-                        <div key={evt.id} style={{
-                          marginLeft: 16, padding: "5px 10px", marginTop: 2,
-                          borderLeft: `2px solid ${pColors[evt.polarity]}25`,
-                          background: "#0e0e1a", borderRadius: "0 4px 4px 0",
-                        }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: "#444" }}>
-                            <span style={{ color: pColors[evt.polarity] }}>{evt.polarity === "positive" ? "＋" : evt.polarity === "negative" ? "−" : "○"}{evt.category ? ` · ${evt.category}` : ""}</span>
-                            <span>{new Date(evt.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                          </div>
-                          <div style={{ fontSize: 10, color: "#999" }}>{evt.text}</div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                }
-                return (
-                  <div key={`e-${item.data.id}`} style={{
-                    padding: "7px 10px", marginBottom: 4,
-                    borderLeft: `2px solid ${pColors[item.data.polarity]}35`,
-                    background: "#12121e", borderRadius: "0 5px 5px 0",
-                  }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: "#444", marginBottom: 1 }}>
-                      <span style={{ color: pColors[item.data.polarity] }}>{item.data.polarity === "positive" ? "＋" : item.data.polarity === "negative" ? "−" : "○"}{item.data.category ? ` · ${item.data.category}` : ""}</span>
-                      <span>{new Date(item.data.timestamp).toLocaleDateString()} {new Date(item.data.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                    </div>
-                    <div style={{ fontSize: 10, color: "#999" }}>{item.data.text}</div>
-                  </div>
-                );
-              });
-            })()}
-            {events.length > 0 && (
-              <div style={{ marginTop: 8 }}>
-                <Btn onClick={() => { setEvents([]); save("df_events", []); }} dim small>CLEAR EVENTS</Btn>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ═══ DECIDE TAB ═══ */}
-        {view === "decide" && (
-          <>
-            <Section title="DECISION EVALUATOR">
-              <div style={{ fontSize: 10, color: "#666", marginBottom: 12 }}>
-                Compare two choices — which one opens you up to more possibility?
-              </div>
-              {[
-                { label: "OPTION A", opt: optA, set: setOptA, color: "#45b7d1" },
-                { label: "OPTION B", opt: optB, set: setOptB, color: "#c084fc" },
-              ].map(({ label, opt, set, color }) => (
-                <div key={label} style={{ marginBottom: 14, padding: 10, border: `1px solid ${color}20`, borderRadius: 5, background: `${color}05` }}>
-                  <div style={{ fontSize: 9, color, letterSpacing: 1, marginBottom: 6 }}>{label}</div>
-                  <input value={opt.label} onChange={e => set({ ...opt, label: e.target.value })}
-                    placeholder="Describe..."
-                    style={{ width: "100%", boxSizing: "border-box", background: "#0a0a16", border: "1px solid #2a2a45", borderRadius: 3, color: "#c8c8d8", padding: "7px 9px", fontSize: 10, fontFamily: "monospace", marginBottom: 8 }}
-                  />
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <Toggle checked={opt.isNovel} onChange={v => set({ ...opt, isNovel: v })} label="New / unfamiliar" />
-                    <Toggle checked={opt.meetsNew} onChange={v => set({ ...opt, meetsNew: v })} label="Meet new people" />
-                    <Toggle checked={opt.crowd} onChange={v => set({ ...opt, crowd: v })} label="Around strangers" />
-                    <Toggle checked={opt.reversible} onChange={v => set({ ...opt, reversible: v })} label="Reversible" />
-                    <Toggle checked={opt.opens} onChange={v => set({ ...opt, opens: v })} label="Opens possibilities" />
-                    <Toggle checked={opt.closes} onChange={v => set({ ...opt, closes: v })} label="Closes paths" />
-                  </div>
-                  <div style={{ marginTop: 8 }}>
-                    <div style={{ fontSize: 8, color: "#444", marginBottom: 3 }}>GUT</div>
-                    <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-                      {["excited", "anxious", "neutral", "dread"].map(f => (
-                        <button key={f} onClick={() => set({ ...opt, gut: f })} style={{
-                          padding: "3px 9px", borderRadius: 3, fontSize: 8,
-                          background: opt.gut === f ? `${color}20` : "#0a0a16",
-                          border: `1px solid ${opt.gut === f ? color + "50" : "#2a2a45"}`,
-                          color: opt.gut === f ? color : "#555", cursor: "pointer", fontFamily: "monospace", textTransform: "capitalize",
-                        }}>{f}</button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <Btn onClick={() => setDecResult(evaluateDecision(optA, optB))} color={pc} full>EVALUATE</Btn>
-            </Section>
-
-            {decResult && (
-              <Section>
-                <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
-                  {[
-                    { l: optA.label || "A", s: decResult.a.score, c: "#45b7d1" },
-                    { l: optB.label || "B", s: decResult.b.score, c: "#c084fc" },
-                  ].map(x => (
-                    <div key={x.l} style={{ flex: 1, textAlign: "center" }}>
-                      <div style={{ fontSize: 26, fontWeight: 200, color: x.c }}>{x.s}</div>
-                      <div style={{ fontSize: 8, color: "#555" }}>{x.l}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ padding: "8px 12px", background: `${pc}10`, borderRadius: 4, fontSize: 11, color: "#bbb", lineHeight: 1.5, marginBottom: 10 }}>
-                  {decResult.verdict}
-                </div>
-                {[{ l: "A", n: decResult.a.notes, c: "#45b7d1" }, { l: "B", n: decResult.b.notes, c: "#c084fc" }].map(x => (
-                  <div key={x.l} style={{ marginBottom: 6 }}>
-                    <div style={{ fontSize: 8, color: x.c, letterSpacing: 1, marginBottom: 2 }}>OPTION {x.l}</div>
-                    {x.n.map((n, i) => <div key={i} style={{ fontSize: 9, color: "#777", padding: "1px 0" }}><span style={{ color: x.c + "60", marginRight: 5 }}>·</span>{n}</div>)}
-                  </div>
-                ))}
-              </Section>
-            )}
-          </>
-        )}
 
         {/* ═══ CONFIG TAB ═══ */}
         {view === "config" && (
           <>
             <Section title="YOUR BIRTH DATE">
-              <div style={{ fontSize: 10, color: "#777", marginBottom: 12, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 11, color: "var(--df-text-muted)", marginBottom: 12, lineHeight: 1.6 }}>
                 Your birth date personalizes your natural rhythm cycles. Without it, the engine uses general patterns only.
               </div>
               {birthDate && (
-                <div style={{ padding: "8px 12px", background: `${pc}08`, borderRadius: 4, marginBottom: 12 }}>
-                  <div style={{ fontSize: 9, color: "#555", marginBottom: 2 }}>CURRENT ANCHOR</div>
-                  <div style={{ fontSize: 12, color: "#bbb" }}>
+                <div style={{ padding: "10px 14px", background: `${GOLD_HEX}08`, borderRadius: 6, marginBottom: 12, border: `1px solid ${GOLD_HEX}15` }}>
+                  <div style={{ fontSize: 10, color: "var(--df-gold)", opacity: 0.55, marginBottom: 2 }}>CURRENT ANCHOR</div>
+                  <div style={{ fontSize: 12, color: "var(--df-text)" }}>
                     {birthDate.toLocaleDateString()}
-                    {birthLoc && <span style={{ color: "#666" }}> · {birthLoc}</span>}
-                    {field?.sign && <span style={{ color: pc }}> · {field.sign.symbol} {field.sign.name}</span>}
+                    {birthLoc && <span style={{ color: "var(--df-text-muted)" }}> {"\u00B7"} {birthLoc}</span>}
+                    {field?.sign && <span style={{ color: pc }}> {"\u00B7"} {field.sign.symbol} {field.sign.name}</span>}
                   </div>
                   {birthChart && (
                     <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
                       <div>
-                        <div style={{ fontSize: 7, color: "#444", letterSpacing: 1 }}>SUN</div>
+                        <div style={{ fontSize: 9, color: "var(--df-text-faint)", letterSpacing: 1 }}>SUN</div>
                         <div style={{ fontSize: 11, color: pc }}>{birthChart.sunSign}</div>
                       </div>
                       {birthChart.moonSign && (
                         <div>
-                          <div style={{ fontSize: 7, color: "#444", letterSpacing: 1 }}>MOON</div>
-                          <div style={{ fontSize: 11, color: "#aaa" }}>{birthChart.moonSign}</div>
+                          <div style={{ fontSize: 9, color: "var(--df-text-faint)", letterSpacing: 1 }}>MOON</div>
+                          <div style={{ fontSize: 11, color: "var(--df-text-secondary)" }}>{birthChart.moonSign}</div>
                         </div>
                       )}
                       {birthChart.risingSign && (
                         <div>
-                          <div style={{ fontSize: 7, color: "#444", letterSpacing: 1 }}>RISING</div>
-                          <div style={{ fontSize: 11, color: "#aaa" }}>{birthChart.risingSign}</div>
+                          <div style={{ fontSize: 9, color: "var(--df-text-faint)", letterSpacing: 1 }}>RISING</div>
+                          <div style={{ fontSize: 11, color: "var(--df-text-secondary)" }}>{birthChart.risingSign}</div>
                         </div>
                       )}
                     </div>
                   )}
                   {birthChart && !birthChart.moonSign && (
-                    <div style={{ fontSize: 8, color: "#444", marginTop: 4 }}>Add birth time + location for moon &amp; rising signs</div>
+                    <div style={{ fontSize: 10, color: "var(--df-text-faint)", marginTop: 4 }}>Add birth time + location for moon &amp; rising signs</div>
                   )}
                 </div>
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div>
-                  <div style={{ fontSize: 8, color: "#444", marginBottom: 3 }}>BIRTH DATE</div>
+                  <div style={{ fontSize: 9, color: "var(--df-gold)", opacity: 0.5, marginBottom: 3, letterSpacing: 1 }}>BIRTH DATE</div>
                   <input type="date" value={birthInput} onChange={e => setBirthInput(e.target.value)}
-                    style={{ width: "100%", boxSizing: "border-box", background: "#0a0a16", border: "1px solid #2a2a45", borderRadius: 3, color: "#c8c8d8", padding: "7px 10px", fontSize: 11, fontFamily: "monospace" }}
+                    style={{ width: "100%", boxSizing: "border-box", background: "var(--df-surface-alt)", border: `1.5px solid ${GOLD_HEX}20`, borderRadius: 5, color: "var(--df-text)", padding: "8px 10px", fontSize: 11, fontFamily: "inherit" }}
                   />
                 </div>
                 <div>
-                  <div style={{ fontSize: 8, color: "#444", marginBottom: 3 }}>BIRTH TIME (optional)</div>
+                  <div style={{ fontSize: 9, color: "var(--df-gold)", opacity: 0.5, marginBottom: 3, letterSpacing: 1 }}>BIRTH TIME (optional)</div>
                   <input type="time" value={birthTime} onChange={e => setBirthTime(e.target.value)}
-                    style={{ width: "100%", boxSizing: "border-box", background: "#0a0a16", border: "1px solid #2a2a45", borderRadius: 3, color: "#c8c8d8", padding: "7px 10px", fontSize: 11, fontFamily: "monospace" }}
+                    style={{ width: "100%", boxSizing: "border-box", background: "var(--df-surface-alt)", border: `1.5px solid ${GOLD_HEX}20`, borderRadius: 5, color: "var(--df-text)", padding: "8px 10px", fontSize: 11, fontFamily: "inherit" }}
                   />
                 </div>
                 <div>
-                  <div style={{ fontSize: 8, color: "#444", marginBottom: 3 }}>BIRTH LOCATION (optional)</div>
+                  <div style={{ fontSize: 9, color: "var(--df-gold)", opacity: 0.5, marginBottom: 3, letterSpacing: 1 }}>BIRTH LOCATION (optional)</div>
                   <input value={birthLoc} onChange={e => setBirthLoc(e.target.value)}
                     placeholder="City, Country"
-                    style={{ width: "100%", boxSizing: "border-box", background: "#0a0a16", border: "1px solid #2a2a45", borderRadius: 3, color: "#c8c8d8", padding: "7px 10px", fontSize: 11, fontFamily: "monospace" }}
+                    style={{ width: "100%", boxSizing: "border-box", background: "var(--df-surface-alt)", border: `1.5px solid ${GOLD_HEX}20`, borderRadius: 5, color: "var(--df-text)", padding: "8px 10px", fontSize: 11, fontFamily: "inherit" }}
                   />
                 </div>
-                <Btn onClick={saveBirth} color={pc} full>SAVE</Btn>
+                <Btn onClick={saveBirth} color={pcHex} full>SAVE</Btn>
               </div>
             </Section>
 
             <Section title="HOW IT WORKS">
-              <div style={{ fontSize: 10, color: "#777", lineHeight: 1.6 }}>
-                <p style={{ margin: "0 0 8px" }}>
-                  <span style={{ color: pc }}>Entropy Engine</span> — Reads random data from your device and analyzes it
+              <div style={{ fontSize: 11, color: "var(--df-text-muted)", lineHeight: 1.7 }}>
+                <p style={{ margin: "0 0 10px" }}>
+                  <span style={{ color: pc }}>Entropy Engine</span> {"\u2014"} Reads random data from your device and analyzes it
                   for patterns. When the randomness deviates from what's expected, that's a signal.
                 </p>
-                <p style={{ margin: "0 0 8px" }}>
-                  <span style={{ color: pc }}>Cycle Layer</span> — Tracks your personal biorhythm cycles based on your
+                <p style={{ margin: "0 0 10px" }}>
+                  <span style={{ color: pc }}>Cycle Layer</span> {"\u2014"} Tracks your personal biorhythm cycles based on your
                   birth date, the current moon phase, and time-of-day energy windows.
                 </p>
-                <p style={{ margin: "0 0 8px" }}>
-                  <span style={{ color: pc }}>Probe System</span> — You set an intention, then fire a probe. The probe
+                <p style={{ margin: "0 0 10px" }}>
+                  <span style={{ color: pc }}>Probe System</span> {"\u2014"} You set an intention, then fire a probe. The probe
                   reads the entropy field and gives you a compass direction and a suggested action.
                 </p>
-                <p style={{ margin: "0 0 8px" }}>
-                  <span style={{ color: pc }}>Surface Area</span> — Based on research into what makes people "lucky."
+                <p style={{ margin: "0 0 10px" }}>
+                  <span style={{ color: pc }}>Surface Area</span> {"\u2014"} Based on research into what makes people "lucky."
                   Tracks how open you are to new experiences, chance encounters, and the unexpected.
                 </p>
                 <p style={{ margin: 0 }}>
-                  <span style={{ color: "#c084fc" }}>The Loop</span> — Notice → Log → Pattern → Act → Notice more.
+                  <span style={{ color: "var(--df-purple)" }}>The Loop</span> {"\u2014"} Notice {"\u2192"} Log {"\u2192"} Pattern {"\u2192"} Act {"\u2192"} Notice more.
                   The more you pay attention, the more you see. This tool helps train that muscle.
                 </p>
               </div>
@@ -1310,9 +1493,9 @@ export default function DriftfieldApp() {
             {/* Account */}
             {supabaseConfigured && isAuthenticated && (
               <Section title="ACCOUNT">
-                <div style={{ fontSize: 10, color: "#777", marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: "var(--df-text-muted)", marginBottom: 8 }}>
                   {user?.email}
-                  {isPremium && <span style={{ color: "#ffd93d", marginLeft: 8 }}>◆ PREMIUM</span>}
+                  {isPremium && <span style={{ color: "var(--df-warning)", marginLeft: 8 }}>{"\u25C6"} PREMIUM</span>}
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   {isPremium ? (
@@ -1334,18 +1517,20 @@ export default function DriftfieldApp() {
             )}
 
             <Section title="DATA">
-              <div style={{ fontSize: 10, color: "#777", marginBottom: 8 }}>
-                {events.length} events · {probeHistory.length} probes · {daily ? "Calibrated today" : "Not calibrated today"}
+              <div style={{ fontSize: 11, color: "var(--df-text-muted)", marginBottom: 8 }}>
+                {events.length} events {"\u00B7"} {probeHistory.length} probes {"\u00B7"} {daily ? "Calibrated today" : "Not calibrated today"}
               </div>
-              <div style={{ display: "flex", gap: 6 }}>
-                <Btn onClick={() => { setEvents([]); save("df_events", []); }} dim small>Clear Events</Btn>
-                <Btn onClick={() => { setProbeHistory([]); save("df_probes", []); }} dim small>Clear Probes</Btn>
-                <Btn onClick={() => { setBirthDate(null); save("df_birth", null); }} dim small>Clear Birth</Btn>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <Btn onClick={() => { setEvents([]); save("df_events", []); }} dim small>CLEAR EVENTS</Btn>
+                <Btn onClick={() => { setProbeHistory([]); save("df_probes", []); }} dim small>CLEAR PROBES</Btn>
+                <Btn onClick={() => { setBirthDate(null); save("df_birth", null); }} dim small>CLEAR BIRTH</Btn>
               </div>
             </Section>
 
-            <div style={{ textAlign: "center", padding: "12px 0 4px", fontSize: 9, color: "#2a2a40" }}>
-              <a href="mailto:jordanaftermidnight@gmail.com" style={{ color: "#3a3a55", textDecoration: "none", letterSpacing: 1 }}>CONTACT</a>
+            <div style={{ textAlign: "center", padding: "16px 0 4px", fontSize: 9, color: "var(--df-text-ghost)" }}>
+              <a href="mailto:jordanaftermidnight@gmail.com" style={{ color: "var(--df-text-dim)", textDecoration: "none", letterSpacing: 1 }}>CONTACT</a>
+              <span style={{ margin: "0 8px", opacity: 0.3 }}>{"\u00B7"}</span>
+              <span style={{ letterSpacing: 1, fontSize: 9 }}>v2.0</span>
             </div>
           </>
         )}
@@ -1354,19 +1539,22 @@ export default function DriftfieldApp() {
       {/* Nav */}
       <div style={{
         position: "fixed", bottom: 0, left: 0, right: 0,
-        background: "#0a0a12ee", borderTop: "1px solid #1a1a2e",
+        background: "var(--df-nav-bg)", borderTop: `1px solid ${GOLD_HEX}20`,
         display: "flex", justifyContent: "center",
-        backdropFilter: "blur(10px)",
+        backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+        zIndex: 100,
       }}>
         <div style={{ display: "flex", maxWidth: 600, width: "100%", justifyContent: "space-around" }}>
           {navItems.map(item => (
             <button key={item.id} onClick={() => { setView(item.id); trackTabView(item.id); }} style={{
-              flex: 1, padding: "9px 0 7px", background: "transparent",
-              border: "none", cursor: "pointer",
-              borderTop: view === item.id ? `2px solid ${pc}` : "2px solid transparent",
+              flex: 1, padding: "10px 0 8px",
+              background: view === item.id ? (isDark ? `${GOLD_HEX}08` : `${GOLD_HEX}0c`) : "transparent",
+              border: "none", cursor: "pointer", outline: "none",
+              borderTop: view === item.id ? `2px solid ${GOLD_HEX}80` : "2px solid transparent",
+              transition: "background 0.2s",
             }}>
-              <div style={{ fontSize: 14, color: view === item.id ? pc : "#2a2a40" }}>{item.icon}</div>
-              <div style={{ fontSize: 6, letterSpacing: 2, color: view === item.id ? pc : "#333", marginTop: 1 }}>{item.label}</div>
+              <div style={{ fontSize: 15, color: view === item.id ? pc : "var(--df-nav-inactive)", transition: "color 0.2s" }}>{item.icon}</div>
+              <div style={{ fontSize: 8, letterSpacing: 2, color: view === item.id ? pc : "var(--df-text-ghost)", marginTop: 2, transition: "color 0.2s" }}>{item.label}</div>
             </button>
           ))}
         </div>

@@ -1,6 +1,6 @@
 import { useRef, useEffect } from "react";
 
-export function CompassRose({ bearing, magnitude, polarity }) {
+export function CompassRose({ bearing, magnitude, polarity, isDark = true }) {
   const canvasRef = useRef(null);
   const frameRef = useRef(0);
 
@@ -9,10 +9,19 @@ export function CompassRose({ bearing, magnitude, polarity }) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     const size = 180;
-    canvas.width = size;
-    canvas.height = size;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    ctx.scale(dpr, dpr);
     const cx = size / 2, cy = size / 2, r = size * 0.38;
-    const color = polarity === "positive" ? [0, 229, 200] : [255, 60, 80];
+
+    // Dark mode: bright colors, lower alpha. Light mode: dark colors, higher alpha.
+    const color = isDark
+      ? (polarity === "positive" ? [0, 229, 200] : [255, 60, 80])
+      : (polarity === "positive" ? [15, 110, 100] : [180, 50, 55]);
+
+    // Opacity multiplier — light mode needs much stronger presence
+    const am = isDark ? 1 : 1.6;
 
     let animId;
     const draw = () => {
@@ -23,15 +32,15 @@ export function CompassRose({ bearing, magnitude, polarity }) {
       // Outer ring
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.15)`;
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${Math.min(0.35 * am, 1)})`;
+      ctx.lineWidth = isDark ? 1 : 1.5;
       ctx.stroke();
 
       // Inner rings
       for (let i = 1; i <= 3; i++) {
         ctx.beginPath();
         ctx.arc(cx, cy, r * (i / 4), 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.06)`;
+        ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${Math.min(0.15 * am, 1)})`;
         ctx.stroke();
       }
 
@@ -39,8 +48,8 @@ export function CompassRose({ bearing, magnitude, polarity }) {
       const dirs = ["N", "E", "S", "W"];
       dirs.forEach((d, i) => {
         const a = (i * Math.PI) / 2 - Math.PI / 2;
-        ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.2)`;
-        ctx.font = "8px monospace";
+        ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${Math.min(0.5 * am, 1)})`;
+        ctx.font = `${isDark ? 9 : 10}px monospace`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(d, cx + Math.cos(a) * (r + 12), cy + Math.sin(a) * (r + 12));
@@ -51,7 +60,7 @@ export function CompassRose({ bearing, magnitude, polarity }) {
       ctx.beginPath();
       ctx.moveTo(cx, cy);
       ctx.lineTo(cx + Math.cos(scanAngle) * r, cy + Math.sin(scanAngle) * r);
-      ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.08)`;
+      ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${Math.min(0.18 * am, 1)})`;
       ctx.lineWidth = 1;
       ctx.stroke();
 
@@ -66,7 +75,7 @@ export function CompassRose({ bearing, magnitude, polarity }) {
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.lineTo(ax, ay);
-        ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.7)`;
+        ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${Math.min(0.7 * am, 1)})`;
         ctx.lineWidth = 2;
         ctx.stroke();
 
@@ -77,13 +86,13 @@ export function CompassRose({ bearing, magnitude, polarity }) {
         ctx.lineTo(ax - Math.cos(fa - 0.4) * hl, ay - Math.sin(fa - 0.4) * hl);
         ctx.moveTo(ax, ay);
         ctx.lineTo(ax - Math.cos(fa + 0.4) * hl, ay - Math.sin(fa + 0.4) * hl);
-        ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},0.9)`;
+        ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${Math.min(0.9 * am, 1)})`;
         ctx.stroke();
 
         // Center
         ctx.beginPath();
         ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.8)`;
+        ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${Math.min(0.8 * am, 1)})`;
         ctx.fill();
       }
 
@@ -93,7 +102,7 @@ export function CompassRose({ bearing, magnitude, polarity }) {
         const d = r * (0.3 + 0.4 * (0.5 + 0.5 * Math.sin(t * 0.5 + i)));
         ctx.beginPath();
         ctx.arc(cx + Math.cos(a) * d, cy + Math.sin(a) * d, 1 + magnitude * 1.5, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${0.15 + magnitude * 0.3})`;
+        ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${Math.min((0.3 + magnitude * 0.4) * am, 1)})`;
         ctx.fill();
       }
 
@@ -101,7 +110,7 @@ export function CompassRose({ bearing, magnitude, polarity }) {
     };
     draw();
     return () => cancelAnimationFrame(animId);
-  }, [bearing, magnitude, polarity]);
+  }, [bearing, magnitude, polarity, isDark]);
 
   return <canvas ref={canvasRef} style={{ width: 180, height: 180, display: "block", margin: "0 auto" }} />;
 }

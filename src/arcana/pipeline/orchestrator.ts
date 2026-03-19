@@ -125,26 +125,47 @@ export interface ReadingResult {
 function parseIntention(question: string | undefined, domainTags: string[]): IntentionVector {
   const text = (question || '').toLowerCase().trim();
 
+  // Word boundary match — prevents "ex" matching "next", "art" matching "start", etc.
+  function matchKeywords(input: string, keywords: string[]): number {
+    let count = 0;
+    for (const k of keywords) {
+      // Multi-word phrases use includes, single words use word boundary regex
+      if (k.includes(' ')) {
+        if (input.includes(k)) count++;
+      } else {
+        const re = new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+        if (re.test(input)) count++;
+      }
+    }
+    return count;
+  }
+
   // Domain detection via keyword matching
   const domainKeywords: Record<string, string[]> = {
-    love: ['love', 'relationship', 'partner', 'dating', 'marriage', 'boyfriend', 'girlfriend', 'husband', 'wife', 'romance', 'crush', 'ex', 'breakup', 'heart', 'soulmate', 'twin flame', 'intimacy', 'commitment'],
-    career: ['job', 'career', 'work', 'boss', 'promotion', 'business', 'company', 'interview', 'hired', 'fired', 'quit', 'resign', 'project', 'freelance', 'entrepreneur', 'salary', 'profession', 'colleague'],
-    financial: ['money', 'financial', 'debt', 'savings', 'invest', 'income', 'afford', 'budget', 'wealth', 'poverty', 'rent', 'mortgage', 'bills', 'crypto', 'stock', 'bank'],
-    health: ['health', 'sick', 'illness', 'doctor', 'hospital', 'recovery', 'energy', 'tired', 'sleep', 'exercise', 'weight', 'diagnosis', 'pain', 'anxiety', 'depression', 'mental health', 'body'],
-    spiritual: ['spiritual', 'soul', 'purpose', 'meaning', 'meditation', 'practice', 'faith', 'divine', 'god', 'universe', 'awakening', 'enlightenment', 'karma', 'dharma', 'path', 'calling'],
-    creative: ['creative', 'art', 'music', 'writing', 'project', 'inspiration', 'muse', 'block', 'album', 'book', 'paint', 'perform', 'studio', 'craft'],
-    family: ['family', 'mother', 'father', 'parent', 'child', 'sibling', 'sister', 'brother', 'daughter', 'son', 'home', 'household', 'grandparent'],
-    self: ['myself', 'identity', 'who am i', 'self', 'growth', 'change', 'transform', 'direction', 'lost', 'stuck', 'confused', 'purpose'],
+    love: ['love', 'relationship', 'partner', 'dating', 'marriage', 'boyfriend', 'girlfriend', 'husband', 'wife', 'romance', 'crush', 'breakup', 'soulmate', 'twin flame', 'intimacy', 'commitment', 'attracted', 'chemistry'],
+    career: ['job', 'career', 'work', 'boss', 'promotion', 'business', 'company', 'interview', 'hired', 'fired', 'quit', 'resign', 'freelance', 'entrepreneur', 'salary', 'profession', 'colleague', 'coworker', 'workplace', 'office'],
+    financial: ['money', 'financial', 'debt', 'savings', 'invest', 'income', 'afford', 'budget', 'wealth', 'poverty', 'rent', 'mortgage', 'bills', 'crypto', 'stock', 'bank', 'finances', 'rich', 'broke', 'profit', 'abundance', 'prosperity'],
+    health: ['health', 'sick', 'illness', 'doctor', 'hospital', 'recovery', 'tired', 'sleep', 'exercise', 'diagnosis', 'pain', 'anxiety', 'depression', 'mental health', 'body', 'wellness', 'therapy', 'healing'],
+    spiritual: ['spiritual', 'soul', 'meditation', 'faith', 'divine', 'god', 'universe', 'awakening', 'enlightenment', 'karma', 'dharma', 'calling', 'higher self', 'sacred', 'prayer'],
+    creative: ['creative', 'art', 'music', 'writing', 'inspiration', 'muse', 'album', 'book', 'paint', 'perform', 'studio', 'craft', 'create', 'artistic', 'compose'],
+    family: ['family', 'mother', 'father', 'parent', 'child', 'sibling', 'sister', 'brother', 'daughter', 'son', 'household', 'grandparent', 'relatives'],
+    self: ['myself', 'identity', 'who am i', 'growth', 'transform', 'direction', 'stuck', 'confused', 'purpose', 'meaning of life', 'self discovery'],
   };
 
   let detectedDomain: string = 'general';
   let maxScore = 0;
   for (const [domain, keywords] of Object.entries(domainKeywords)) {
-    const score = keywords.filter(k => text.includes(k)).length;
+    const score = matchKeywords(text, keywords);
     if (score > maxScore) { maxScore = score; detectedDomain = domain; }
   }
 
-  // Fall back to domain tags if no keyword match
+  // Domain tags override when keyword detection is weak (0-1 match)
+  if (domainTags.length > 0 && maxScore <= 1) {
+    // Check if any selected domain tag matches a known domain
+    const tagDomain = domainTags.find(t => domainKeywords[t]);
+    if (tagDomain) detectedDomain = tagDomain;
+  }
+  // Fall back to domain tags if no keyword match at all
   if (detectedDomain === 'general' && domainTags.length > 0) {
     detectedDomain = domainTags[0];
   }
@@ -153,34 +174,34 @@ function parseIntention(question: string | undefined, domainTags: string[]): Int
   const toneKeywords: Record<string, string[]> = {
     anxious: ['worried', 'scared', 'afraid', 'anxious', 'nervous', 'panic', 'terrified', 'dread', 'fear', 'what if'],
     hopeful: ['hope', 'wish', 'dream', 'optimistic', 'excited', 'looking forward', 'positive', 'maybe things'],
-    curious: ['wonder', 'curious', 'what', 'how', 'why', 'interested', 'tell me', 'show me'],
+    curious: ['wonder', 'curious', 'interested', 'tell me', 'show me'],
     grieving: ['lost', 'died', 'grief', 'miss', 'gone', 'mourning', 'passed away', 'never again'],
-    frustrated: ['frustrated', 'angry', 'mad', 'fed up', 'tired of', 'sick of', 'enough', 'can\'t stand', 'unfair'],
-    conflicted: ['torn', 'conflicted', 'both', 'either', 'can\'t decide', 'split', 'dilemma', 'on one hand'],
-    excited: ['exciting', 'thrilled', 'amazing', 'can\'t wait', 'new', 'finally', 'ready'],
+    frustrated: ['frustrated', 'angry', 'fed up', 'tired of', 'sick of', 'enough', 'unfair'],
+    conflicted: ['torn', 'conflicted', 'can\'t decide', 'split', 'dilemma', 'on one hand'],
+    excited: ['exciting', 'thrilled', 'amazing', 'can\'t wait', 'finally'],
   };
 
   let detectedTone: string = 'neutral';
   let toneMax = 0;
   for (const [tone, keywords] of Object.entries(toneKeywords)) {
-    const score = keywords.filter(k => text.includes(k)).length;
+    const score = matchKeywords(text, keywords);
     if (score > toneMax) { toneMax = score; detectedTone = tone; }
   }
 
   // Specificity: how concrete is the question?
   const specificIndicators = ['should i', 'will i', 'when will', 'is he', 'is she', 'does he', 'does she', 'am i', 'can i'];
-  const vagueIndicators = ['what do i need', 'what should i know', 'general', 'anything', 'whatever', 'open'];
-  const specificScore = specificIndicators.filter(k => text.includes(k)).length;
-  const vagueScore = vagueIndicators.filter(k => text.includes(k)).length;
+  const vagueIndicators = ['what do i need', 'what should i know', 'general', 'anything', 'whatever'];
+  const specificScore = matchKeywords(text, specificIndicators);
+  const vagueScore = matchKeywords(text, vagueIndicators);
   const specificity = text.length === 0 ? 0.0 : Math.min(1.0, Math.max(0.1, (specificScore - vagueScore + 3) / 6));
 
   // Temporal focus
   const pastWords = ['was', 'did', 'happened', 'before', 'used to', 'back when', 'past'];
-  const futureWords = ['will', 'going to', 'when', 'future', 'next', 'soon', 'eventually', 'ahead'];
-  const presentWords = ['now', 'currently', 'right now', 'today', 'at the moment', 'is'];
-  const pastScore = pastWords.filter(k => text.includes(k)).length;
-  const futureScore = futureWords.filter(k => text.includes(k)).length;
-  const presentScore = presentWords.filter(k => text.includes(k)).length;
+  const futureWords = ['will', 'going to', 'future', 'next', 'soon', 'eventually', 'ahead'];
+  const presentWords = ['now', 'currently', 'right now', 'today', 'at the moment'];
+  const pastScore = matchKeywords(text, pastWords);
+  const futureScore = matchKeywords(text, futureWords);
+  const presentScore = matchKeywords(text, presentWords);
   let temporalFocus: 'past' | 'present' | 'future' | 'cyclical' | 'liminal' = 'present';
   if (futureScore > pastScore && futureScore > presentScore) temporalFocus = 'future';
   else if (pastScore > futureScore && pastScore > presentScore) temporalFocus = 'past';
@@ -189,6 +210,9 @@ function parseIntention(question: string | undefined, domainTags: string[]): Int
   const implicitQuestions: string[] = [];
   if (detectedDomain === 'love' && detectedTone === 'anxious') {
     implicitQuestions.push('Am I worthy of being loved?');
+  }
+  if (detectedDomain === 'financial') {
+    implicitQuestions.push('Am I making the right choices with my resources?');
   }
   if (text.includes('should i quit') || text.includes('should i leave')) {
     implicitQuestions.push('Am I brave enough to make this change?');
@@ -205,8 +229,8 @@ function parseIntention(question: string | undefined, domainTags: string[]): Int
   const dyadicWords = ['us', 'we', 'our', 'between', 'together', 'partner', 'relationship'];
   const groupWords = ['family', 'team', 'group', 'everyone', 'community'];
   let relationalFrame: 'self' | 'dyadic' | 'group' | 'universal' = 'self';
-  if (dyadicWords.some(w => text.includes(w))) relationalFrame = 'dyadic';
-  else if (groupWords.some(w => text.includes(w))) relationalFrame = 'group';
+  if (matchKeywords(text, dyadicWords) > 0) relationalFrame = 'dyadic';
+  else if (matchKeywords(text, groupWords) > 0) relationalFrame = 'group';
 
   return {
     domain: detectedDomain as any,
@@ -282,12 +306,28 @@ function composeNarrativeTierA(
     const pool = OPENING_TEMPLATES.no_question;
     opening = pool[Math.floor(Math.random() * pool.length)];
   } else {
-    const pool = intention.specificity > 0.5
-      ? OPENING_TEMPLATES.with_question.specific
-      : OPENING_TEMPLATES.with_question.vague;
+    // Try tone-responsive opening first for specific questions
+    let pool: string[];
+    if (intention.specificity > 0.5) {
+      const tonePool = (OPENING_TEMPLATES.with_question as any).specific_by_tone?.[intention.emotionalTone];
+      if (tonePool && Math.random() < 0.4) {
+        // 40% chance to use tone-specific opening when available
+        pool = tonePool;
+      } else {
+        pool = OPENING_TEMPLATES.with_question.specific;
+      }
+    } else {
+      pool = OPENING_TEMPLATES.with_question.vague;
+    }
     opening = pool[Math.floor(Math.random() * pool.length)]
       .replace('{domain}', intention.domain)
-      .replace('{spread_name}', spread.name);
+      .replace('{spread_name}', spread.name)
+      .replace('{tone}', intention.emotionalTone);
+  }
+
+  // Acknowledge implicit questions when present
+  if (intention.implicitQuestions.length > 0 && question) {
+    opening += ` ${intention.implicitQuestions[0]}`;
   }
 
   // Spread overview: count majors, identify dominant suit
@@ -303,45 +343,119 @@ function composeNarrativeTierA(
 
   let spreadOverview = '';
   if (majorCount >= Math.ceil(mainCards.length / 2)) {
-    spreadOverview = `${majorCount} of your ${mainCards.length} cards are Major Arcana. That's significant — the forces at work here are larger than day-to-day concerns. This reading is about the big picture.`;
+    const majorNames = mainCards
+      .filter(r => r.card.card.arcana === 'major')
+      .map(r => r.card.card.name);
+    spreadOverview = `${majorCount} of your ${mainCards.length} cards are Major Arcana — ${majorNames.join(', ')}. When the Majors show up in force like this, the reading isn't about logistics or timing. It's about the deeper currents shaping your ${intention.domain} situation. ${majorNames.length >= 2 ? `${majorNames[0]} alongside ${majorNames[majorNames.length - 1]} suggests forces that are larger than any single decision you could make right now.` : ''}`;
   } else if (dominantSuit && dominantSuit[1] >= Math.ceil(mainCards.length * 0.6)) {
-    const suitThemes: Record<string, string> = {
-      wands: 'fire energy — passion, ambition, creative drive',
-      cups: 'water energy — emotion, relationships, intuition',
-      swords: 'air energy — thought, communication, conflict',
-      pentacles: 'earth energy — material concerns, work, the physical world',
+    const suitNarratives: Record<string, string> = {
+      wands: `Your spread is heavy with Wands — fire, ambition, the part of you that wants to move and build. When it comes to ${intention.domain}, the cards are saying this is about drive and will more than strategy or feeling.`,
+      cups: `Cups are flooding this reading. That means the emotional layer of your ${intention.domain} situation is the one that matters most right now. What you feel about this is the data, not the distraction.`,
+      swords: `The reading is sharp with Swords — thought, conflict, the kind of clarity that sometimes cuts. Your ${intention.domain} question has a mental edge to it, and the cards aren't softening that.`,
+      pentacles: `Pentacles dominate here — earth, material reality, what you can actually hold. Whatever's happening with ${intention.domain}, the cards are grounding it in the practical. What does this look like in concrete terms?`,
     };
-    spreadOverview = `The reading is dominated by ${dominantSuit[0]} — ${suitThemes[dominantSuit[0]] || dominantSuit[0]}. That gives the whole spread a particular flavor.`;
+    spreadOverview = suitNarratives[dominantSuit[0]] || `The reading leans heavily toward ${dominantSuit[0]}, which colors everything else in the spread.`;
   } else {
-    spreadOverview = `The cards are a mix of energies. No single element dominates, which suggests a balanced situation — or one where multiple forces are at play.`;
+    const suitNames = suitEntries.filter(e => e[1] > 0).map(e => e[0]);
+    spreadOverview = `The cards pulled from different corners — ${suitNames.join(', ')} are all in play. That's not indecisiveness; it's complexity. Your ${intention.domain} situation has multiple dimensions and the reading is honoring all of them rather than simplifying.`;
   }
 
-  // Card narratives
-  const cardReadings = resolvedCards
-    .filter(r => !r.card.isJumper && !r.card.isBottomCard)
-    .map(rc => {
+  // Card narratives — with connective tissue between sections
+  const filteredCards = resolvedCards.filter(r => !r.card.isJumper && !r.card.isBottomCard);
+  const cardReadings = filteredCards
+    .map((rc, index) => {
       const chartNote = weavedContext?.chartResonances.get(rc.card.card.id);
-      let narrative = rc.interpretation.core;
-      if (rc.positionalFrame) narrative += ' ' + rc.positionalFrame;
-      if (rc.fieldResponse) narrative += ' ' + rc.fieldResponse;
+
+      // Build narrative with transitions between sections
+      let narrative = '';
+
+      // Add transition for multi-card spreads
+      if (filteredCards.length > 1 && index > 0) {
+        const transition = TRANSITION_TEMPLATES[Math.floor(Math.random() * TRANSITION_TEMPLATES.length)]
+          .replace('{position_name}', rc.card.positionName)
+          .replace('{card_name}', rc.card.card.name)
+          .replace('{orientation}', rc.card.orientation);
+        narrative += transition + ' ';
+      }
+
+      // Core interpretation
+      narrative += rc.interpretation.core;
+
+      // Connective tissue between core and positional frame
+      if (rc.positionalFrame) {
+        const bridges = [
+          ' In this position,', ' Here,', ' Sitting where it is,',
+          ' Given where it landed,', ' In the context of this position,',
+        ];
+        narrative += bridges[Math.floor(Math.random() * bridges.length)] + ' ' + rc.positionalFrame.charAt(0).toLowerCase() + rc.positionalFrame.slice(1);
+      }
+
+      // Field response with natural connector
+      if (rc.fieldResponse) {
+        const fieldBridges = [
+          ' The field adds something:', ' And the entropy has something to say about this:',
+          ' The draw itself underlines this:', '',
+        ];
+        const bridge = fieldBridges[Math.floor(Math.random() * fieldBridges.length)];
+        narrative += bridge + ' ' + rc.fieldResponse;
+      }
+
       if (chartNote) narrative += ' ' + chartNote;
-      if (rc.interpretation.advice) narrative += ' ' + rc.interpretation.advice;
 
       return {
         positionName: rc.card.positionName,
         cardName: rc.card.card.name,
         orientation: rc.card.orientation,
         narrative,
+        advice: rc.interpretation.advice || '',
+        warning: rc.interpretation.warning || '',
+        affirmation: rc.interpretation.affirmation || '',
       };
     });
 
-  // Synthesis
-  const synthPool = SYNTHESIS_TEMPLATES.coherent;
+  // Synthesis — detect tension, transformation, coherence, or mixed signals
+  const hasConflict = cardReadings.length >= 2 && (() => {
+    const orientations = resolvedCards.filter(r => !r.card.isJumper && !r.card.isBottomCard).map(r => r.card.orientation);
+    const uprightCount = orientations.filter(o => o === 'upright' || o === 'well_dignified').length;
+    const reversedCount = orientations.length - uprightCount;
+    return reversedCount >= 1 && uprightCount >= 1 && Math.abs(uprightCount - reversedCount) <= 1;
+  })();
+
+  const hasMajorArc = majorCount >= Math.ceil(mainCards.length / 2);
+  const pivotCard = resolvedCards.reduce((a, b) => (a.pivotScore >= b.pivotScore ? a : b), resolvedCards[0]);
+  const pivotAdvice = pivotCard?.interpretation.advice || 'Trust the process.';
+  const pivotName = pivotCard?.card.card.name || '';
+  const firstCard = cardReadings[0];
+  const lastCard = cardReadings[cardReadings.length - 1];
+
+  // Detect mixed: multiple suits, no strong conflict, no major arc
+  const uniqueSuits = new Set(suitEntries.filter(e => e[1] > 0).map(e => e[0]));
+  const isMixed = !hasConflict && !hasMajorArc && uniqueSuits.size >= 3;
+
+  let synthPool: string[];
+  if (hasConflict && cardReadings.length >= 2) {
+    synthPool = SYNTHESIS_TEMPLATES.tension;
+  } else if (hasMajorArc) {
+    synthPool = SYNTHESIS_TEMPLATES.transformation;
+  } else if (isMixed) {
+    synthPool = SYNTHESIS_TEMPLATES.mixed;
+  } else {
+    synthPool = SYNTHESIS_TEMPLATES.coherent;
+  }
   const synthesis = synthPool[Math.floor(Math.random() * synthPool.length)]
-    .replace('{insight}', resolvedCards[0]?.interpretation.advice || 'Trust the process.');
+    .replace('{insight}', pivotAdvice)
+    .replace('{card_a}', firstCard?.cardName || '')
+    .replace('{card_b}', lastCard?.cardName || '')
+    .replace('{resolution}', pivotAdvice)
+    .replace('{from}', firstCard?.cardName || 'the old')
+    .replace('{to}', lastCard?.cardName || 'the new')
+    .replace('{pivot_card}', pivotName)
+    .replace('{domain}', intention.domain)
+    .replace('{card_count}', String(cardReadings.length));
 
   // Closing
-  const closing = CLOSING_TEMPLATES[Math.floor(Math.random() * CLOSING_TEMPLATES.length)];
+  const closing = CLOSING_TEMPLATES[Math.floor(Math.random() * CLOSING_TEMPLATES.length)]
+    .replace('{domain}', intention.domain);
 
   // Optional sections
   let fieldNote: string | undefined;
@@ -507,7 +621,7 @@ export async function executeReading(request: ReadingRequest): Promise<ReadingRe
         zodiac: rc.card.card.zodiac,
         planet: rc.card.card.planet,
         coreMeaning: rc.interpretation.core,
-        domainMeaning: rc.interpretation.core,
+        domainMeaning: rc.interpretation.advice || rc.interpretation.core,
         positionalFrame: rc.positionalFrame,
         fieldResponse: rc.fieldResponse,
         chartResonance: rc.chartResonance,

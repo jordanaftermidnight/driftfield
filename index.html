@@ -4,18 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Driftfield — Serendipity Engine</title>
-<meta name="description" content="Detect, amplify, and follow probability currents. Entropy-driven serendipity navigation based on real math and behavioral science.">
+<meta name="description" content="An entropy-driven oracle that detects probability currents, amplifies your luck surface area, and tells you where chance is flowing.">
 <meta property="og:title" content="Driftfield — Serendipity Engine">
-<meta property="og:description" content="Randonautica told you where to go. This tells you what to do.">
+<meta property="og:description" content="An entropy-driven oracle that detects probability currents, amplifies your luck surface area, and tells you where chance is flowing.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://driftfield.app/">
 <meta property="og:image" content="https://driftfield.app/og-image.png">
 <meta property="og:site_name" content="Driftfield">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Driftfield — Serendipity Engine">
-<meta name="twitter:description" content="Randonautica told you where to go. This tells you what to do.">
+<meta name="twitter:description" content="An entropy-driven oracle that detects probability currents, amplifies your luck surface area, and tells you where chance is flowing.">
 <meta name="twitter:image" content="https://driftfield.app/og-image.png">
-<meta name="theme-color" content="#06060e">
+<meta name="theme-color" content="#0a0a14">
 <meta http-equiv="X-Frame-Options" content="DENY">
 <meta http-equiv="Content-Security-Policy" content="frame-ancestors 'none'">
 <meta name="robots" content="noarchive">
@@ -26,20 +26,38 @@
 <style>
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-  :root {
-    --bg: #06060e;
-    --surface: #0c0c18;
-    --border: #14142a;
-    --text: #a8a8c0;
+  :root, [data-theme="dark"] {
+    --bg: #0a0a14;
+    --surface: #10101e;
+    --border: #1a1a30;
+    --border-warm: #2a2418;
+    --text: #b0b0c8;
     --text-dim: #55556a;
     --text-bright: #d8d8f0;
     --accent: #00e5c8;
     --accent-dim: #00e5c820;
     --negative: #ff3c50;
     --purple: #c084fc;
-    --gold: #ffd93d;
+    --gold: #C9A84C;
+    --gold-dim: #C9A84C20;
     --serif: 'Cormorant Garamond', Georgia, serif;
     --mono: 'IBM Plex Mono', 'Courier New', monospace;
+    color-scheme: dark;
+  }
+
+  [data-theme="light"] {
+    --bg: #eae8e2;
+    --surface: #f2f1ed;
+    --border: #d0cec6;
+    --border-warm: #c8be9e;
+    --text: #4a4a55;
+    --text-dim: #6e6e78;
+    --text-bright: #1a1a25;
+    --accent: #1a8f82;
+    --accent-dim: #1a8f8220;
+    --gold: #9a7e20;
+    --gold-dim: #9a7e2020;
+    color-scheme: light;
   }
 
   html { scroll-behavior: smooth; }
@@ -72,7 +90,7 @@
 
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: #1a1a30; border-radius: 2px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
   section { position: relative; z-index: 1; }
   .container { max-width: 820px; margin: 0 auto; padding: 0 24px; }
@@ -131,9 +149,9 @@
     font-family: var(--mono);
     font-size: 12px;
     letter-spacing: 3px;
-    color: var(--text-dim);
-    margin-bottom: 48px;
+    color: var(--gold);
     opacity: 0;
+    margin-bottom: 48px;
     animation: fadeUp 1s ease 0.7s forwards;
   }
 
@@ -215,21 +233,22 @@
     font-family: var(--mono);
     font-size: 9px;
     letter-spacing: 6px;
-    color: var(--text-dim);
+    color: var(--gold);
+    opacity: 0.6;
     text-align: center;
     margin-bottom: 60px;
   }
 
   .feature-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
     gap: 2px;
   }
 
   .feature-card {
     background: var(--surface);
     padding: 36px 32px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-warm);
     transition: all 0.4s ease;
     position: relative;
     overflow: hidden;
@@ -242,13 +261,13 @@
     left: 0;
     width: 100%;
     height: 2px;
-    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
     opacity: 0;
     transition: opacity 0.4s;
   }
 
   .feature-card:hover::before { opacity: 0.5; }
-  .feature-card:hover { background: #0e0e1c; }
+  .feature-card:hover { background: var(--surface); filter: brightness(1.1); border-color: color-mix(in srgb, var(--gold) 40%, transparent); }
 
   .feature-icon { font-size: 24px; margin-bottom: 16px; display: block; }
 
@@ -256,7 +275,7 @@
     font-family: var(--mono);
     font-size: 11px;
     letter-spacing: 3px;
-    color: var(--accent);
+    color: var(--gold);
     margin-bottom: 12px;
   }
 
@@ -273,7 +292,8 @@
     font-family: var(--mono);
     font-size: 9px;
     letter-spacing: 6px;
-    color: var(--text-dim);
+    color: var(--gold);
+    opacity: 0.6;
     text-align: center;
     margin-bottom: 60px;
   }
@@ -291,7 +311,8 @@
     font-family: var(--mono);
     font-size: 32px;
     font-weight: 300;
-    color: var(--border);
+    color: var(--gold);
+    opacity: 0.35;
     line-height: 1;
     flex-shrink: 0;
     width: 40px;
@@ -315,15 +336,16 @@
 
   .science {
     padding: 80px 24px 120px;
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
+    border-top: 1px solid var(--border-warm);
+    border-bottom: 1px solid var(--border-warm);
   }
 
   .science-label {
     font-family: var(--mono);
     font-size: 9px;
     letter-spacing: 6px;
-    color: var(--text-dim);
+    color: var(--gold);
+    opacity: 0.6;
     text-align: center;
     margin-bottom: 48px;
   }
@@ -340,7 +362,8 @@
     font-family: var(--mono);
     font-size: 10px;
     letter-spacing: 2px;
-    color: var(--purple);
+    color: var(--gold);
+    opacity: 0.7;
     margin-bottom: 8px;
   }
 
@@ -395,7 +418,7 @@
 
   footer {
     padding: 40px 24px;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--border-warm);
     text-align: center;
   }
 
@@ -420,9 +443,39 @@
   .footer-copy {
     font-family: var(--mono);
     font-size: 9px;
-    color: #2a2a40;
+    color: var(--text-dim);
+    opacity: 0.5;
     letter-spacing: 2px;
   }
+
+  .theme-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border-warm);
+    border-radius: 20px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    transition: all 0.3s;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .theme-toggle:hover { border-color: var(--gold); color: var(--text); }
+  .theme-toggle .icon { font-size: 14px; }
+
+  [data-theme="light"] body::after { opacity: 0.015 !important; }
+  [data-theme="light"] ::-webkit-scrollbar-track { background: var(--bg); }
+  [data-theme="light"] ::-webkit-scrollbar-thumb { background: var(--border); }
 
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(16px); }
@@ -487,24 +540,25 @@
     font-family: var(--mono);
     font-size: 9px;
     letter-spacing: 3px;
-    color: #2a2a40;
+    color: var(--text-dim);
+    opacity: 0;
     margin-bottom: 20px;
     min-height: 14px;
-    opacity: 0;
     animation: fadeUp 1s ease 0.85s forwards;
   }
 
   .signal-capture {
     padding: 80px 24px;
     text-align: center;
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--border-warm);
   }
 
   .capture-label {
     font-family: var(--mono);
     font-size: 9px;
     letter-spacing: 6px;
-    color: var(--text-dim);
+    color: var(--gold);
+    opacity: 0.6;
     margin-bottom: 16px;
   }
 
@@ -585,31 +639,30 @@
 </head>
 <body>
 
-<canvas id="bg-canvas"></canvas>
+<button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
+  <span class="icon" id="theme-icon" aria-hidden="true">&#x263D;</span>
+  <span id="theme-label" aria-live="polite">DARK</span>
+</button>
+
+<canvas id="bg-canvas" aria-hidden="true"></canvas>
 
 <section class="hero">
   <div style="margin-bottom: 32px; opacity: 0; animation: fadeUp 1s ease 0.2s forwards;">
-    <svg width="64" height="64" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="120" cy="120" r="95" fill="none" stroke="#1a3a4a" stroke-width="0.8" stroke-dasharray="3 8"/>
-      <circle cx="120" cy="120" r="82" fill="none" stroke="#1a2a3a" stroke-width="0.5"/>
-      <line x1="120" y1="35" x2="120" y2="44" stroke="#00e5c8" stroke-width="1.5" opacity="0.7"/>
-      <line x1="205" y1="120" x2="196" y2="120" stroke="#00e5c8" stroke-width="1.5" opacity="0.7"/>
-      <line x1="120" y1="205" x2="120" y2="196" stroke="#00e5c8" stroke-width="1.5" opacity="0.7"/>
-      <line x1="35" y1="120" x2="44" y2="120" stroke="#00e5c8" stroke-width="1.5" opacity="0.7"/>
-      <circle cx="120" cy="120" r="55" fill="none" stroke="#0d2a35" stroke-width="0.8"/>
-      <line x1="120" y1="60" x2="120" y2="85" stroke="#00e5c8" stroke-width="0.5" opacity="0.3"/>
-      <line x1="120" y1="155" x2="120" y2="180" stroke="#00e5c8" stroke-width="0.5" opacity="0.3"/>
-      <line x1="60" y1="120" x2="85" y2="120" stroke="#00e5c8" stroke-width="0.5" opacity="0.3"/>
-      <line x1="155" y1="120" x2="180" y2="120" stroke="#00e5c8" stroke-width="0.5" opacity="0.3"/>
-      <path d="M120 120 L120 58" stroke="#00e5c8" stroke-width="2.5" stroke-linecap="round"/>
-      <path d="M120 58 Q126 66 123 74" stroke="#00e5c8" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-      <path d="M120 120 L120 150" stroke="#00e5c8" stroke-width="1" stroke-linecap="round" opacity="0.3"/>
-      <circle cx="120" cy="120" r="4" fill="#00e5c8" opacity="0.6"/>
-      <circle cx="120" cy="120" r="2" fill="#00e5c8"/>
-      <circle cx="98" cy="95" r="1" fill="#00e5c8" opacity="0.2"/>
-      <circle cx="145" cy="102" r="0.8" fill="#00e5c8" opacity="0.15"/>
-      <circle cx="108" cy="148" r="0.6" fill="#00e5c8" opacity="0.25"/>
-      <circle cx="140" cy="138" r="1" fill="#00e5c8" opacity="0.1"/>
+    <svg width="72" height="72" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="120" cy="120" r="105" fill="none" style="stroke:var(--gold)" stroke-width="2" opacity="0.35"/>
+      <line x1="120" y1="15" x2="120" y2="25" style="stroke:var(--gold)" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+      <line x1="225" y1="120" x2="215" y2="120" style="stroke:var(--gold)" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+      <line x1="120" y1="225" x2="120" y2="215" style="stroke:var(--gold)" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+      <line x1="15" y1="120" x2="25" y2="120" style="stroke:var(--gold)" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+      <circle cx="120" cy="120" r="70" fill="none" style="stroke:var(--gold)" stroke-width="1.5" opacity="0.2"/>
+      <path d="M120 120 L120 38" style="stroke:var(--accent)" stroke-width="4" stroke-linecap="round"/>
+      <path d="M120 38 L128 56 M120 38 L112 56" style="stroke:var(--accent)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <circle cx="120" cy="120" r="8" style="fill:var(--gold)" opacity="0.4"/>
+      <circle cx="120" cy="120" r="4" style="fill:var(--accent)"/>
+      <circle cx="95" cy="90" r="1.2" style="fill:var(--gold)" opacity="0.2"/>
+      <circle cx="150" cy="100" r="1" style="fill:var(--gold)" opacity="0.15"/>
+      <circle cx="105" cy="155" r="0.8" style="fill:var(--accent)" opacity="0.2"/>
+      <circle cx="145" cy="145" r="1" style="fill:var(--accent)" opacity="0.12"/>
     </svg>
   </div>
   <h1>The noise has<br>a <em>direction</em></h1>
@@ -644,59 +697,33 @@
 
 <section class="features">
   <div class="container">
-    <div class="features-label reveal">FIVE SIGNAL LAYERS</div>
+    <div class="features-label reveal">THREE INSTRUMENTS</div>
     <div class="feature-grid">
       <div class="feature-card reveal">
         <span class="feature-icon">&#x25C9;</span>
-        <div class="feature-name">ENTROPY ENGINE</div>
+        <div class="feature-name">SCAN</div>
         <p class="feature-desc">
-          Samples thousands of bytes from cryptographic entropy. Runs Shannon analysis,
-          chi-squared tests, serial correlation, runs detection, and Monte Carlo estimation.
-          Deviations from randomness become the signal.
+          The entropy engine samples cryptographic randomness and analyzes deviations in real time.
+          Biorhythm cycles, lunar phase, and temporal gates overlay your personal probability field.
+          Fire probes with an intention &mdash; or compare two choices and let the field weigh in.
         </p>
       </div>
       <div class="feature-card reveal">
-        <span class="feature-icon">&#x27D0;</span>
-        <div class="feature-name">PROBE SYSTEM</div>
+        <span class="feature-icon">&#x2727;</span>
+        <div class="feature-name">ARCANA</div>
         <p class="feature-desc">
-          Set an intention. Fire a probe. 4096 bytes of entropy are sampled and analyzed.
-          The anomaly pattern derives a compass bearing and an action.
-          Like Randonautica &mdash; but it tells you what to <em>do</em>, not where to go.
-        </p>
-      </div>
-      <div class="feature-card reveal">
-        <span class="feature-icon">&#x1F315;</span>
-        <div class="feature-name">CYCLE LAYER</div>
-        <p class="feature-desc">
-          Biorhythm cycles anchored to your birth chart. Lunar phase with interpretive context.
-          Temporal gates &mdash; circadian energy windows where the probability field shifts.
+          A full tarot reading engine powered by the entropy field. 78 cards, 12 spreads,
+          generative procedural card backs, and narrative that responds to your question,
+          the cards drawn, and the current field state. Not random &mdash; <em>responsive</em>.
         </p>
       </div>
       <div class="feature-card reveal">
         <span class="feature-icon">&#x25C8;</span>
-        <div class="feature-name">SYNCHRONICITY LOG</div>
+        <div class="feature-name">THE LOOP</div>
         <p class="feature-desc">
-          Track coincidences, unexpected encounters, repeating patterns.
-          The pattern detector finds temporal clusters, thematic repetitions,
-          polarity streaks, and frequency acceleration.
-        </p>
-      </div>
-      <div class="feature-card reveal">
-        <span class="feature-icon">&#x27C1;</span>
-        <div class="feature-name">DECISION EVALUATOR</div>
-        <p class="feature-desc">
-          Facing a choice? Score each option by its serendipity surface area.
-          Novelty, weak-tie exposure, reversibility, optionality, gut signal.
-          Which path exposes you to more chance?
-        </p>
-      </div>
-      <div class="feature-card reveal">
-        <span class="feature-icon">&#x27A4;</span>
-        <div class="feature-name">ATTENTION AMPLIFIER</div>
-        <p class="feature-desc">
-          The core insight: attention is the multiplier.
-          Notice &rarr; Log &rarr; Pattern &rarr; Act &rarr; Notice more.
-          Each cycle sharpens the perceptual infrastructure that lucky people already have.
+          Log synchronicities. Track patterns. The detector finds temporal clusters,
+          polarity streaks, and frequency shifts in your events. Daily surface area scoring
+          measures your actual openness to chance. Each cycle sharpens your attention.
         </p>
       </div>
     </div>
@@ -710,33 +737,33 @@
       <div class="how-step reveal">
         <div class="how-num">01</div>
         <div class="how-step-content">
-          <h3>Calibrate your field</h3>
-          <p>Set your birth data to anchor biorhythm cycles. Answer daily questions about your
-          actual exposure to novelty, strangers, and the unexpected. This measures your real luck surface area.</p>
+          <h3>Scan the field</h3>
+          <p>The entropy engine samples cryptographic randomness and analyzes deviations in real time.
+          Biorhythm cycles, lunar phase, and temporal gates overlay your personal probability landscape.</p>
         </div>
       </div>
       <div class="how-step reveal">
         <div class="how-num">02</div>
         <div class="how-step-content">
-          <h3>Fire entropy probes</h3>
-          <p>Set an intention &mdash; a question, curiosity, or desire. The probe samples cryptographic entropy
-          and analyzes deviations from perfect randomness. The anomaly pattern produces a direction and an action to take.</p>
+          <h3>Fire a probe or draw cards</h3>
+          <p>Set an intention and fire an entropy probe for a compass bearing and action.
+          Or open the Arcana engine &mdash; draw tarot cards and receive a reading shaped by the field state and your question.</p>
         </div>
       </div>
       <div class="how-step reveal">
         <div class="how-num">03</div>
         <div class="how-step-content">
-          <h3>Follow and log</h3>
-          <p>Take the suggested action. Log what happens &mdash; coincidences, encounters, patterns.
-          The system detects clusters in your events: time-of-day patterns, recurring themes, polarity streaks, frequency shifts.</p>
+          <h3>Act, log, notice</h3>
+          <p>Follow the probe's direction. Log what happens. The pattern detector finds temporal clusters,
+          polarity streaks, and frequency shifts in your events. Each cycle sharpens your attention.</p>
         </div>
       </div>
       <div class="how-step reveal">
         <div class="how-num">04</div>
         <div class="how-step-content">
           <h3>The loop amplifies</h3>
-          <p>Each cycle of noticing and logging sharpens your peripheral attention &mdash; the single strongest
-          predictor of &ldquo;luckiness&rdquo; in the research. The tool doesn't create luck. It trains you to see the currents.</p>
+          <p>Attention is the multiplier. The more you notice, the more you see. This tool doesn't create luck &mdash;
+          it trains the perceptual infrastructure that lucky people already have.</p>
         </div>
       </div>
     </div>
@@ -784,10 +811,10 @@
 <section class="compare">
   <div class="container reveal">
     <p class="compare-quote">
-      Randonautica told you <span>where to go</span>.<br>
-      This tells you <span>what to do</span>.
+      An <span>oracle</span> in your pocket.<br>
+      Entropy speaks &mdash; you <span>listen</span>.
     </p>
-    <p class="compare-sub">SAME ENTROPY. BETTER OUTPUT.</p>
+    <p class="compare-sub">DETECT &middot; INTERPRET &middot; ACT</p>
   </div>
 </section>
 
@@ -812,21 +839,38 @@
       The detector doesn't create luck &mdash; it makes the invisible visible.
     </p>
     <div class="cta-group">
-      <a href="app/" class="cta cta-primary">OPEN DETECTOR</a>
+      <a href="app/" class="cta cta-primary">OPEN ENGINE</a>
     </div>
   </div>
 </section>
 
 <footer>
   <div class="footer-links">
-    <a href="app/">DETECTOR</a>
-    <a href="https://github.com/jordanaftermidnight/driftfield" target="_blank">GITHUB</a>
+    <a href="app/">ENGINE</a>
+    <a href="https://github.com/jordanaftermidnight/driftfield" target="_blank" rel="noopener">GITHUB</a>
     <a href="mailto:jordanaftermidnight@gmail.com">CONTACT</a>
   </div>
   <div class="footer-copy">DRIFTFIELD &middot; ENTROPY &times; CYCLE &times; ATTENTION &times; ACTION</div>
 </footer>
 
 <script>
+// Theme toggle — syncs with app's localStorage key
+function getTheme() {
+  return localStorage.getItem('df_theme') || 'dark';
+}
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('theme-icon').innerHTML = t === 'dark' ? '&#x263D;' : '&#x2600;';
+  document.getElementById('theme-label').textContent = t === 'dark' ? 'DARK' : 'LIGHT';
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', t === 'dark' ? '#0a0a14' : '#eae8e2');
+}
+function toggleTheme() {
+  const next = getTheme() === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('df_theme', next);
+  applyTheme(next);
+}
+applyTheme(getTheme());
+
 const canvas = document.getElementById('bg-canvas');
 const ctx = canvas.getContext('2d');
 function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
@@ -839,19 +883,24 @@ const particles = Array.from({ length: 50 }, () => ({
   speed: Math.random() * 0.3 + 0.1,
   drift: (Math.random() - 0.5) * 0.2,
   opacity: Math.random() * 0.15 + 0.02,
+  gold: Math.random() < 0.35,
 }));
 let frame = 0;
 function animate() {
   frame++;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const isLight = getTheme() === 'light';
   particles.forEach(p => {
     p.y -= p.speed;
     p.x += p.drift + Math.sin(frame * 0.005 + p.x * 0.003) * 0.2;
     if (p.y < -10) { p.y = canvas.height + 10; p.x = Math.random() * canvas.width; }
     const flicker = 0.7 + 0.3 * Math.sin(frame * 0.02 + p.x * 0.01);
+    const op = p.opacity * flicker * (isLight ? 1.5 : 1);
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(0, 229, 200, ${p.opacity * flicker})`;
+    ctx.fillStyle = p.gold
+      ? (isLight ? `rgba(154, 126, 32, ${op})` : `rgba(201, 168, 76, ${op})`)
+      : (isLight ? `rgba(26, 143, 130, ${op})` : `rgba(0, 229, 200, ${op})`);
     ctx.fill();
   });
   requestAnimationFrame(animate);

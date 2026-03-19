@@ -237,11 +237,9 @@ export interface CardNarrative {
   cardName: string;
   orientation: string;
   narrative: string;
-  // Not: "The Tower in the Challenge position represents sudden upheaval."
-  // But: "In the position of what's opposing you — The Tower. Reversed.
-  //       Here's the thing about the Tower reversed: it's not that the
-  //       disruption isn't coming. It's that you're bracing for it so hard
-  //       that the bracing itself is the problem."
+  advice: string;
+  warning: string;
+  affirmation: string;
 }
 
 
@@ -443,46 +441,94 @@ export function buildReadingUserPrompt(context: {
 export const OPENING_TEMPLATES = {
   with_question: {
     specific: [
-      "You asked about {domain}. Let's see what the cards have to say — and whether they agree with you about what the real question is.",
-      "Your question is clear, and the cards are responding to it. But they're also responding to something underneath it.",
-      "{spread_name} for your question about {domain}. The cards are being direct today.",
-      "You want to know about {domain}. The cards heard you. Here's what they're saying.",
+      "You're asking about {domain}, and the cards aren't being subtle — {major_card} showed up.",
+      "{spread_name} drew {card_count} cards, and {major_count_note}.",
+      "You came in asking about {domain}. The very first card — {first_card} — already tells you this isn't going to be a comfortable answer.",
+      "So, {domain}. The cards didn't hesitate. {first_card} landed first, and it set the tone for everything after.",
+      "You want to know about {domain}. Look at what showed up: {card_list}. That's not a gentle hand.",
+      "A {spread_name} about {domain}, and the cards came in with {card_count} clear opinions.",
+      "{first_card} in the opening position tells you everything you need to know about where this reading is headed.",
+      "You're asking about {domain}, and the draw gave you {card_list}. Let's talk about what that actually means.",
     ],
+    specific_by_tone: {
+      anxious: [
+        "I can tell this one matters to you. And the cards know it — {first_card} showed up right away, which says something about the weight of what you're carrying around {domain}.",
+        "You're carrying a lot around {domain} right now. The cards responded with {first_card}. That's not random.",
+      ],
+      hopeful: [
+        "There's a lightness in this question about {domain}, and {first_card} in the opening position suggests the cards see it too.",
+        "You're asking about {domain} with something close to hope. {first_card} says that hope has legs.",
+      ],
+      frustrated: [
+        "You've been sitting with this {domain} question for a while, haven't you. {first_card} coming up first — the cards are ready to be blunt about it.",
+        "Look — you already know something about {domain} that you're not saying. {first_card} is going to say it for you.",
+      ],
+      conflicted: [
+        "There's a split in you about {domain}. The cards see both sides — {first_card} and {last_card} are pulling in different directions.",
+        "You're holding two things at once about {domain}. {first_card} speaks to one; {last_card} speaks to the other.",
+      ],
+    },
     vague: [
-      "You have something on your mind but you're not sure how to frame it. That's fine — the cards don't need perfect questions.",
-      "The question is open, and so is the reading. Let's see what wants to be seen.",
-      "Sometimes not knowing what to ask is the most honest starting point.",
+      "You have something on your mind but you're not sure how to frame it. The cards framed it for you — look at {first_card}.",
+      "The question is open, and the cards took that as an invitation. {first_card} leads, and it's not being subtle.",
+      "Sometimes not knowing what to ask is the most honest starting point. The cards responded with {card_list}.",
+      "You're circling something. The cards landed on {first_card} — that might be the thing you're circling.",
+      "There's a question in there, even if you can't quite name it. {first_card} suggests the cards found it anyway.",
+      "Half-formed questions often get the most honest readings. {card_count} cards came through, led by {first_card}.",
     ],
   },
   no_question: [
-    "No question — just cards. Let's see what's active in the field right now.",
-    "You didn't ask a question, which means the cards get to choose what to talk about. Let's see where they went.",
-    "Open reading. The cards speak for themselves today.",
+    "No question — just cards. {first_card} showed up first, which already says something about what's active right now.",
+    "You didn't ask a question, which means the cards got to choose. They chose {first_card}. Make of that what you will.",
+    "Open reading. {card_count} cards, led by {first_card}. The cards speak for themselves today.",
+    "No question needed. {first_card} has something to say whether you asked or not.",
+    "You left the field open, and the cards stepped in with {card_list}. Here's what they want you to hear.",
+    "Blank slate, and the cards drew {first_card} first. They always know where to start.",
   ],
 };
 
 export const TRANSITION_TEMPLATES = [
-  "Moving to {position_name} —",
-  "Next, in the position of {position_name}:",
-  "And then there's {card_name} in {position_name}.",
-  "The {position_name} position holds {card_name}, and this is where it gets interesting.",
-  "Now, {card_name}. {orientation}. In {position_name}.",
+  "And in the {position_name} position — {card_name} changes the picture.",
+  "But look at what sits in {position_name}: {card_name}. That complicates things.",
+  "Now, {card_name}. {orientation}. Sitting in {position_name}, which is exactly where it would hurt most.",
+  "What landed in {position_name} shifts everything that came before it. {card_name}, {orientation}.",
+  "And here's where it turns — {card_name} in {position_name}. This card is in conversation with everything above it.",
+  "{position_name} holds {card_name}, and this is the card that tells you what to actually do about the rest.",
+  "Then there's {card_name}, {orientation}, in the {position_name} position. It's answering a question the other cards raised.",
+  "The {position_name} slot drew {card_name}. If the previous card was the problem, this one is pointing at the way through.",
+  "{card_name} in {position_name} — and this one talks back to everything before it.",
+  "But {position_name} changes the tone. {card_name}, {orientation}. Notice how this reframes what you just read.",
 ];
 
 export const SYNTHESIS_TEMPLATES = {
   coherent: [
-    "The reading is consistent. The cards are saying one thing from multiple angles: {insight}.",
-    "Everything here points in the same direction. {insight}.",
-    "The cards agree with each other. That's worth noting. {insight}.",
+    "The reading is consistent. The cards are saying one thing from multiple angles: {insight}. If you needed permission, this is it.",
+    "Everything here points in the same direction. {insight}. Stop second-guessing this one.",
+    "The cards agree with each other, and when that happens, the message isn't something to file away — it's something to act on. {insight}.",
+    "When every card in a reading says the same thing, it's not subtle. The message: {insight}. The only question left is timing.",
+    "There's a clarity here that doesn't always happen. {pivot_card} says it most directly: {insight}. Trust what you're hearing.",
+    "The whole spread is one sentence: {insight}. The cards needed {card_count} ways to say it because you needed {card_count} ways to hear it.",
   ],
   tension: [
-    "There's tension in this reading — {card_a} and {card_b} are pulling in different directions. The resolution lies in {resolution}.",
-    "Not everything here agrees. {card_a} says one thing; {card_b} says another. The truth is probably in the space between them.",
-    "This reading has a contradiction at its center, and that contradiction IS the message.",
+    "These cards are pulling in different directions. That tension isn't a problem to solve — it's the actual situation. Sit with both.",
+    "Not everything here agrees. {card_a} says one thing; {card_b} says another. Don't rush to resolve this — the discomfort is where the insight lives.",
+    "This reading has a contradiction at its center, and that contradiction IS the message. You don't need to pick a side yet.",
+    "Here's what's uncomfortable: {card_a} and {card_b} can't both be right. But in your {domain} situation, they're both real. Hold both until one releases on its own.",
+    "The cards are arguing. {card_a} wants one thing; {card_b} wants another. You already know what that feels like. The reading isn't going to resolve it — but it's telling you the tension itself is generative.",
+    "If {card_a} had shown up alone, the answer would be simple. But {card_b} complicates everything. Good. The simple answer was going to be wrong.",
   ],
   transformation: [
-    "This is a transformation reading. Something is ending; something is beginning. The cards are showing you the hinge point.",
-    "The arc here is change — from {from} to {to}. You're somewhere in the middle of that arc right now.",
+    "This is a transformation reading. Something is ending; something is beginning. You're at the hinge point — and the hinge only works if you let go of one side.",
+    "The arc here is change — from {from} to {to}. If you're waiting for permission to let something go, this is it.",
+    "Look at the movement: {from} at the start, {to} at the end. These aren't the same person. The reading is showing you who you're becoming — stop mourning who you were.",
+    "The cards drew a line from {from} to {to}. That's not a gentle shift — that's a before and after. You're past the point of going back. Move forward deliberately.",
+    "From {from} through to {to} — that's the whole arc. The part you're in right now, the messy middle, is temporary. Keep going.",
+  ],
+  mixed: [
+    "This reading doesn't have one clean message — it has several. That's not vagueness, it's accuracy. Your {domain} situation is genuinely complex. Start with {pivot_card} and let the rest land when it lands.",
+    "Not every reading resolves neatly. This one has layers. The thread worth pulling first: what {pivot_card} is telling you. The rest will make sense once that moves.",
+    "The spread is pulling in a few directions at once, which tracks. Real situations don't have single answers. The thread worth following: {insight}. Start there.",
+    "There's no single chord here — it's counterpoint. Multiple voices, not all harmonizing. {insight}. Pick the voice that scares you slightly — that's probably the honest one.",
   ],
 };
 
@@ -493,12 +539,16 @@ export const CLOSING_TEMPLATES = [
   "The cards said what they said. Your move.",
   "Come back to this reading in a few days. See what stuck.",
   "The reading is done. The decision is yours.",
+  "That's what the cards have to say about {domain}. The rest is up to you.",
+  "The reading is finished, but your {domain} situation isn't. Let this inform the next step, not dictate it.",
+  "There it is. Not everything the cards said will land today — some of it is for next week.",
+  "Take a breath. The reading said what it needed to. You'll know what to do with it.",
 ];
 
 export const CHARGED_FIELD_NOTES = [
-  "One more thing — the entropy engine flagged this as a charged reading. The randomness source itself was anomalous at the moment of your draw. That doesn't happen often. Take this one seriously.",
-  "Worth noting: the field state during your draw was statistically unusual. The reading carries extra weight.",
-  "The field was charged when you drew. Whatever this reading is telling you, the system's own entropy is underlining it.",
+  "The cards came through with unusual clarity today. Something about the draw felt weighted — more deliberate than random. Take this one seriously.",
+  "Something shifted while you were drawing — the reading carries extra weight. Pay closer attention to what unsettled you.",
+  "The field was restless during your draw. Whatever landed hard in this reading, that's the part that matters most.",
 ];
 
 export const PATTERN_TEMPLATES = {

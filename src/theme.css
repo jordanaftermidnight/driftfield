@@ -1,0 +1,69 @@
+/* ============================================================================
+   DRIFTFIELD — THEME SYSTEM
+   CSS Custom Properties for light/dark mode.
+   Referenced by inline styles via var(--df-*).
+   ============================================================================ */
+
+:root,
+[data-theme="dark"] {
+  --df-bg: #111120;
+  --df-surface: #1a1a2c;
+  --df-surface-alt: #141422;
+  --df-border: #2a2a45;
+  --df-border-warm: #3a3530;
+  --df-border-subtle: #222238;
+  --df-border-input: #33334e;
+  --df-text: #d4d4e4;
+  --df-text-bright: #eaeaf5;
+  --df-text-secondary: #aaa;
+  --df-text-muted: #888;
+  --df-text-dim: #666;
+  --df-text-faint: #555;
+  --df-text-ghost: #444;
+  --df-accent: #00e5c8;
+  --df-accent-dim: #00e5c825;
+  --df-negative: #ff3c50;
+  --df-gold: #C9A84C;
+  --df-warning: #ffd93d;
+  --df-blue: #45b7d1;
+  --df-purple: #c084fc;
+  --df-nav-bg: #111120ee;
+  --df-nav-inactive: #3a3a55;
+  --df-overlay: rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --df-bg: #eae8e2;
+  --df-surface: #f2f1ed;
+  --df-surface-alt: #e2e0d9;
+  --df-border: #d0cec6;
+  --df-border-warm: #c8be9e;
+  --df-border-subtle: #dad8d2;
+  --df-border-input: #c0beb6;
+  --df-text: #2a2a35;
+  --df-text-bright: #1a1a25;
+  --df-text-secondary: #4a4a55;
+  --df-text-muted: #5a5a65;
+  --df-text-dim: #6e6e78;
+  --df-text-faint: #8a8a92;
+  --df-text-ghost: #a5a5ad;
+  --df-accent: #1a8f82;
+  --df-accent-dim: #1a8f8220;
+  --df-negative: #c4453a;
+  --df-gold: #9a7e20;
+  --df-warning: #b08818;
+  --df-blue: #2d7aa0;
+  --df-purple: #7e4098;
+  --df-nav-bg: #eae8e2ee;
+  --df-nav-inactive: #a0a0a8;
+  --df-overlay: rgba(0, 0, 0, 0.25);
+  color-scheme: light;
+}
+
+/* Global resets that apply to themed elements */
+[data-theme="light"] input,
+[data-theme="light"] textarea,
+[data-theme="light"] select {
+  color-scheme: light;
+}

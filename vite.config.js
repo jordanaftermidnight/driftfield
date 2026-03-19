@@ -102,7 +102,7 @@ export default defineConfig({
           deadCodeInjectionThreshold: 0.2,
           identifierNamesGenerator: 'hexadecimal',
           renameGlobals: false,
-          selfDefending: true,
+          selfDefending: false,
           stringArray: true,
           stringArrayThreshold: 0.5,
           stringArrayEncoding: ['base64'],
