@@ -49,6 +49,9 @@ driftfield-engine-FINAL.tar.gz
 scripts/
 .vercel
 
-# Internal planning docs (not for public distribution)
+# Internal planning docs and unused assets
 ARCANA_IMPLEMENTATION_PLAN.md
 src/arcana/vision/training-spec.ts
+src/arcana/dataset/unified-schema.ts
+public/og-image.svg
+public/_headers
