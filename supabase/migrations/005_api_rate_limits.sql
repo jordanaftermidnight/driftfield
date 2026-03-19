@@ -31,6 +31,8 @@ CREATE POLICY "Service role manages rate limits"
   WITH CHECK (auth.role() = 'service_role');
 
 -- Check rate limit: returns true if under limit
+-- SECURITY: Only callable by service_role to prevent
+-- a user from exhausting another user's rate limit
 CREATE OR REPLACE FUNCTION public.check_rate_limit(
   p_user_id uuid,
   p_endpoint text,
@@ -42,6 +44,11 @@ AS $$
 DECLARE
   request_count int;
 BEGIN
+  -- Only service_role can call this (API functions use service role key)
+  IF auth.role() IS DISTINCT FROM 'service_role' THEN
+    RETURN false;
+  END IF;
+
   -- Count requests in the sliding window
   SELECT COUNT(*) INTO request_count
   FROM public.api_rate_limits
